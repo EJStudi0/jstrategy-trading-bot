@@ -113,10 +113,11 @@ Cada idea se mide primero en el diseño (2020-2023). Solo pasa a la prueba (2024
 se distingue del azar, con el signo esperado y sin depender de un solo año. Lo que no pasa no entra
 en el bot, por bien que suene.
 
-Balance a 2026-11-10: de todo lo medido (las quince ideas de la tabla y la estrategia que corre),
-solo esta última pasó la prueba. Las huellas de
+Balance a 2026-11-10: de todo lo medido (las ideas de la tabla y la estrategia que corre), solo esta
+última pasó la prueba. Las huellas de
 posicionamiento («el rastro de los grandes») existen y tienen el signo que cabía esperar, pero son
-demasiado débiles a este plazo para pagar sus comisiones. Quedan sin poder medirse por falta de
+demasiado débiles a este plazo para pagar sus comisiones. Un aviso sobre esa conclusión: los ratios de
+los traders grandes solo existen desde finales de 2022, así que su diseño es poco más de un año. Quedan sin poder medirse por falta de
 histórico anterior a 2024 o de datos gratuitos: flujos de los ETF y datos de la cadena.
 
 | Idea | Qué salió | Dónde |
@@ -132,6 +133,7 @@ histórico anterior a 2024 o de datos gratuitos: flujos de los ETF y datos de la
 | Posicionamiento: traders grandes menos multitud | Signo correcto (t ≈ 1,4-2,3 en BTC) pero añadido a la estrategia no mejora nada | `posicionamiento.py` |
 | Cubrir más las monedas con más financiación | La más financiada rinde peor que las demás (t ≈ −3), pero el ajuste no mueve el resultado | `financiacion_relativa.py` |
 | Manga neutral: vender lo más financiado, comprar lo menos | Cobra ~19 %/año de financiación, pero con 40 % de volatilidad y años en contra (2020: −13 %) | diseño |
+| Un modelo que combina las catorce huellas a la vez | Ajustado con un año y medido con el otro no se distingue del azar (t ≈ 1). No llegó a la prueba | `modelo.py` |
 | Interés abierto, purgas de liquidación, flujo de compras | Sin poder predictivo utilizable a 1-7 días | `estudio_huellas.py` |
 | Prima de Coinbase (demanda de EE. UU.) | No predice a 1, 3 ni 7 días (\|t\| < 1,3) | `huellas.py` |
 | Emisión de monedas estables | Signo esperado, pero t ≈ 1,4 y cambia de signo según el año | diseño |

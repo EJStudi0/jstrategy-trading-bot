@@ -9,8 +9,12 @@ Al dueño se le habla en español, corto, sin nombres de ficheros ni de funcione
 
 - `bot/` — el bot. `estrategia.py` (decide, función pura de velas cerradas), `cartera.py`
   (contabilidad simulada), `ejecutor.py` (bucle), `datos.py` (velas), `resumen.py` (ganancia por
-  día y mes para el panel), `panel.py` + `panel_estatico/` (sin librerías de fuera; política de
-  contenido estricta: nada de scripts ni estilos en línea).
+  día y mes para el panel), `panel.py` (sirve la API y la página).
+- `panel/` — la página: React + TypeScript + Tailwind + Lightweight Charts. `npm run build` (con
+  `nice -n 19`) la compila a `bot/panel_estatico/`, que SÍ va a git; tras tocar `panel/` hay que
+  compilar o falla la prueba de la huella. Política de contenido estricta: nada de scripts ni
+  estilos en línea, ni `<style>` inyectados (por eso el logotipo de la librería va apagado y la
+  atribución está en el pie). Versiones fijadas, con más de dos semanas publicadas.
 - `investigacion/` — simulador y estudios. `salidas/` y `datos_cache/` se regeneran y no van a git.
 - `tests/` — `.venv/bin/python -m pytest` (~40 s).
 - `01_…` a `13_…`, `panel_web.py`, `panel_static/` — el sistema anterior. No se ejecuta. No se

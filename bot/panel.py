@@ -24,6 +24,7 @@ import csv
 import hmac
 import logging
 import os
+import re
 import secrets
 import threading
 import time
@@ -36,19 +37,18 @@ from fastapi.responses import FileResponse, JSONResponse
 from bot import config
 
 log = logging.getLogger("bot")
+# La página es una compilación de `panel/` (React + TypeScript, ver su README): `npm run build`
+# deja aquí index.html y sus piezas con nombre de huella en assets/.
 DIR_ESTATICO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "panel_estatico")
 CADUCIDAD_CONFIRMACION_S = 45
 
-# Lo único que se sirve sin token: la página y sus piezas. Ningún otro fichero de la carpeta.
-ESTATICOS = {
-    "index.html": "text/html; charset=utf-8",
-    "panel.css": "text/css; charset=utf-8",
-    "panel.js": "text/javascript; charset=utf-8",
-    "graficas.js": "text/javascript; charset=utf-8",
-    "formato.js": "text/javascript; charset=utf-8",
-    "icono.svg": "image/svg+xml",
-}
-POLITICA = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; "
+# Lo único que se sirve sin token: la página y sus piezas, por tipo y con nombre sencillo. Ningún
+# otro fichero, ni nada fuera de esa carpeta.
+TIPOS = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+         ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".woff2": "font/woff2",
+         ".png": "image/png"}
+_NOMBRE_PIEZA = re.compile(r"^(assets/)?[A-Za-z0-9][A-Za-z0-9._-]*$")
+POLITICA = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; "
             "connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
 CABECERAS = {
     "Content-Security-Policy": POLITICA,
@@ -56,6 +56,29 @@ CABECERAS = {
     "Referrer-Policy": "no-referrer",
     "X-Frame-Options": "DENY",
 }
+
+
+def ruta_pieza(nombre: str) -> Optional[str]:
+    """La ruta en disco de una pieza de la página, o None si no es de las que se sirven."""
+    if not _NOMBRE_PIEZA.match(nombre or "") or ".." in nombre:
+        return None
+    raiz = os.path.realpath(DIR_ESTATICO)
+    ruta = os.path.realpath(os.path.join(raiz, nombre))
+    if not ruta.startswith(raiz + os.sep) or not os.path.isfile(ruta):
+        return None
+    return ruta if os.path.splitext(ruta)[1] in TIPOS else None
+
+
+def piezas() -> dict:
+    """Todas las piezas que se sirven, con su tipo (para las pruebas)."""
+    out = {}
+    for sub in ("", "assets/"):
+        carpeta = os.path.join(DIR_ESTATICO, sub)
+        if os.path.isdir(carpeta):
+            for nombre in sorted(os.listdir(carpeta)):
+                if ruta_pieza(sub + nombre):
+                    out[sub + nombre] = TIPOS[os.path.splitext(nombre)[1]]
+    return out
 
 
 def _ultimas_filas(ruta: str, n: int) -> list:
@@ -122,10 +145,13 @@ def construir_app(bot, token: str):
         return respuesta
 
     def estatico(nombre: str):
-        if nombre not in ESTATICOS:
+        ruta = ruta_pieza(nombre)
+        if ruta is None:
             raise HTTPException(status_code=404, detail="No existe")
-        return FileResponse(os.path.join(DIR_ESTATICO, nombre), media_type=ESTATICOS[nombre],
-                            headers=sin_cache)
+        # Las piezas de assets/ llevan su huella en el nombre: si cambian, cambia el nombre.
+        cache = ({"Cache-Control": "public, max-age=31536000, immutable"} if nombre.startswith("assets/")
+                 else sin_cache)
+        return FileResponse(ruta, media_type=TIPOS[os.path.splitext(ruta)[1]], headers=cache)
 
     @app.get("/")
     def raiz():
@@ -152,6 +178,13 @@ def construir_app(bot, token: str):
     @app.get("/api/mercado", dependencies=[Depends(exigir_token)])
     def mercado():
         return JSONResponse(bot.mercado(), headers=sin_cache)
+
+    @app.get("/api/grafica", dependencies=[Depends(exigir_token)])
+    def grafica(simbolo: str, n: int = 360):
+        try:
+            return JSONResponse(bot.grafica(simbolo, max(30, min(n, 1500))), headers=sin_cache)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     @app.post("/api/mando", dependencies=[Depends(exigir_token)])
     async def mando(request: Request):
@@ -182,7 +215,11 @@ def construir_app(bot, token: str):
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-    # Al final, para que no tape ninguna ruta de la API.
+    # Al final, para que no tapen ninguna ruta de la API.
+    @app.get("/assets/{nombre}")
+    def pieza_assets(nombre: str):
+        return estatico("assets/" + nombre)
+
     @app.get("/{nombre}")
     def pieza(nombre: str):
         if nombre == "index.html":

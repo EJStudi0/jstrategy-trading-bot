@@ -23,7 +23,8 @@ def cliente(tmp_path, monkeypatch):
     return c
 
 
-RUTAS_GET = ["/api/estado", "/api/operaciones", "/api/patrimonio", "/api/ganancias", "/api/mercado"]
+RUTAS_GET = ["/api/estado", "/api/operaciones", "/api/patrimonio", "/api/ganancias", "/api/mercado",
+             "/api/grafica?simbolo=AAAUSDT"]
 RUTAS_POST = ["/api/mando", "/api/ajustes"]
 
 
@@ -56,17 +57,59 @@ def test_un_formulario_de_otra_pagina_no_sirve(cliente):
 
 
 def test_la_pagina_no_lleva_datos_ni_el_token(cliente):
-    for nombre, tipo in panel.ESTATICOS.items():
+    piezas = panel.piezas()
+    assert "index.html" in piezas and any(p.startswith("assets/") and p.endswith(".js") for p in piezas)
+    for nombre, tipo in piezas.items():
         r = cliente.get("/" if nombre == "index.html" else "/" + nombre)
         assert r.status_code == 200, nombre
         assert r.headers["content-type"].split(";")[0] == tipo.split(";")[0], nombre
-        assert TOKEN not in r.text
-        assert "no-store" in r.headers.get("cache-control", "")
+        assert TOKEN.encode() not in r.content
+        cache = r.headers.get("cache-control", "")
+        # Las piezas con huella en el nombre se guardan; la página nunca (siempre trae la última).
+        assert ("immutable" in cache) if nombre.startswith("assets/") else ("no-store" in cache), nombre
     assert "10000" not in cliente.get("/").text and "10.000" not in cliente.get("/").text
 
 
-@pytest.mark.parametrize("ruta", ["/panel.py", "/.env", "/estado_cartera.json", "/index.html",
-                                  "/..%2Fpanel.py", "/%2e%2e/config.py", "/api", "/favicon.ico"])
+def test_la_pagina_compilada_es_la_de_sus_fuentes():
+    """bot/panel_estatico/ sale de compilar panel/ (npm run build). Si alguien cambia las fuentes y no
+    compila, el bot serviría una página vieja: esta prueba lo caza con la misma huella que deja la
+    compilación."""
+    import hashlib
+    import json
+    import os
+    raiz = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "panel")
+    if not os.path.isdir(raiz):
+        pytest.skip("sin las fuentes del panel")
+    ficheros = []
+    for f in ("index.html", "package.json", "package-lock.json", "vite.config.ts", "tsconfig.json", "src", "public"):
+        ruta = os.path.join(raiz, f)
+        if os.path.isdir(ruta):
+            for base_, _, nombres in os.walk(ruta):
+                ficheros += [os.path.join(base_, n) for n in nombres]
+        else:
+            ficheros.append(ruta)
+    relativos = sorted(os.path.relpath(f, raiz).replace(os.sep, "/") for f in ficheros)
+    h = hashlib.sha256()
+    for r in relativos:
+        with open(os.path.join(raiz, r), "rb") as fh:
+            h.update((r + "\n" + hashlib.sha256(fh.read()).hexdigest() + "\n").encode())
+    with open(os.path.join(panel.DIR_ESTATICO, "huella.json"), encoding="utf-8") as fh:
+        compilada = json.load(fh)["fuentes"]
+    assert compilada == h.hexdigest(), "el panel cambió y no se compiló: cd panel && npm run build"
+
+
+def test_lo_que_pide_la_pagina_existe(cliente):
+    import re
+    html = cliente.get("/").text
+    pedidos = re.findall(r'(?:src|href)="(/[^"]+)"', html)
+    assert pedidos, "la página no pide nada"
+    for ruta in pedidos:
+        assert cliente.get(ruta).status_code == 200, ruta
+
+
+@pytest.mark.parametrize("ruta", ["/panel.py", "/.env", "/estado_cartera.json", "/index.html", "/huella.json",
+                                  "/..%2Fpanel.py", "/%2e%2e/config.py", "/api", "/favicon.ico",
+                                  "/assets/..%2F..%2Fpanel.py", "/assets/.oculto.js", "/assets/no-existe.js"])
 def test_no_se_sirve_nada_fuera_de_la_lista(cliente, ruta):
     assert cliente.get(ruta).status_code == 404
 
@@ -159,6 +202,12 @@ def test_curva_por_tramo_y_mercado(cliente):
     assert cliente.get("/api/patrimonio?horas=-5", headers=AUT).status_code == 200
     m = cliente.get("/api/mercado", headers=AUT).json()
     assert [x["simbolo"] for x in m["monedas"]] == list(SIMBOLOS) and m["intervalo"] == "4h"
+    g = cliente.get("/api/grafica?simbolo=AAAUSDT&n=100", headers=AUT).json()
+    assert len(g["t"]) == len(g["c"]) == len(g["puntuacion"]) == 100
+    assert set(g["medias"]) == {"2/8", "4/16", "5/20", "8/32", "10/40", "16/64"} and set(g["canales"]) == {"5", "10", "20", "40"}
+    assert len(g["marcas"]) >= 1, "la primera decisión dejó operaciones en esta moneda"
+    assert cliente.get("/api/grafica?simbolo=NOEXISTE", headers=AUT).status_code == 400
+    assert cliente.get("/api/grafica?simbolo=AAAUSDT").status_code == 401
 
 
 def test_sin_token_configurado_el_panel_no_arranca(monkeypatch):

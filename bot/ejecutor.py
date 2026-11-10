@@ -10,6 +10,7 @@ simulador histórico, y siempre sobre velas CERRADAS.
 
 from __future__ import annotations
 
+import bisect
 import csv
 import logging
 import os
@@ -21,7 +22,7 @@ from typing import Optional
 import numpy as np
 
 from bot import cartera as cart
-from bot import config, datos, estrategia, resumen
+from bot import config, datos, estrategia, indicadores, resumen
 
 log = logging.getLogger("bot")
 
@@ -30,6 +31,7 @@ VELAS_MINIMAS = 700            # con menos, no se opina sobre esa moneda
 MARGEN_MINIMO = 0.20           # garantía mínima de los perpetuos sobre su nocional
 ESPERA_REZAGADAS_S = 300       # cuánto se espera a que todas las monedas publiquen la vela
 VELAS_SEMANA = 42              # siete días de velas de 4 h, para las minigráficas del panel
+VELAS_GRAFICA = 360            # sesenta días de velas de 4 h para la gráfica de cada moneda
 
 # Curva de patrimonio: una foto por hora. Los dos acumulados del final permiten repartir la
 # ganancia de cada día entre financiación, comisiones y mercado (`bot/resumen.py`).
@@ -426,7 +428,13 @@ class Bot:
             for s in self.p.simbolos:
                 wc, wp = pesos.get(s, (0.0, 0.0))
                 d = dec.get(s, {})
+                corto = self.cartera.perp.get(s)
+                q_perp = corto.cantidad if corto else 0.0
                 monedas.append({
+                    "cantidad_base": self.cartera.contado.get(s, 0.0), "cantidad_perp": q_perp,
+                    "entrada_perp": corto.entrada if corto and q_perp else None,
+                    "no_realizado_perp": (q_perp * (precios[s] - corto.entrada)
+                                          if corto and q_perp and s in precios else 0.0),
                     "simbolo": s, "precio": precios.get(s),
                     "puntuacion": d.get("puntuacion"), "vol": d.get("vol"),
                     "base": wc, "cobertura": -wp if wp < 0 else 0.0, "perp": wp, "neto": wc + wp,
@@ -505,6 +513,67 @@ class Bot:
         else:
             inicio = ahora
         return resumen.calcular(puntos, inicio, ahora, zona)
+
+    def grafica(self, simbolo: str, n: int = VELAS_GRAFICA) -> dict:
+        """Velas cerradas de una moneda con lo que mira la estrategia, para la gráfica del panel.
+
+        Las medias, los canales y la puntuación salen de la misma cuadrícula y las mismas funciones
+        con las que decide el bot. Las operaciones del diario van como marcas en la vela que las
+        decidió (la que acababa de cerrar).
+        """
+        if simbolo not in self.p.simbolos:
+            raise ValueError(f"moneda desconocida: {simbolo}")
+        ms = datos.MS[self.p.intervalo]
+        vd = estrategia.VELAS_DIA[self.p.intervalo]
+        vacio = {"simbolo": simbolo, "intervalo": self.p.intervalo, "t": [], "o": [], "h": [], "l": [], "c": [],
+                 "medias": {}, "canales": {}, "puntuacion": [], "marcas": [], "precio": self.precios.get(simbolo)}
+        v = self.velas.get(simbolo)
+        m = self._matrices()
+        if v is None or not len(v) or m is None:
+            return vacio
+        tg, H, L, C = m
+        j = self.p.simbolos.index(simbolo)
+        ok = ~np.isnan(C[:, j])
+        if not ok.any():
+            return vacio
+        t, h, l, c = tg[ok], H[ok, j], L[ok, j], C[ok, j]
+        k = slice(max(0, len(t) - n), len(t))
+        aperturas = dict(zip(v.t.tolist(), v.o.tolist()))
+
+        def ultimos(x):
+            return [None if np.isnan(y) else round(float(y), 10) for y in x[k]]
+
+        medias = {f"{r}/{s}": {"rapida": ultimos(indicadores.ema(c, r * vd)), "lenta": ultimos(indicadores.ema(c, s * vd))}
+                  for r, s in self.p.cruces}
+        canales = {}
+        for d in self.p.rupturas:
+            w = int(round(d * vd))
+            alto = np.concatenate(([np.nan], indicadores.maximo(h, w)[:-1]))
+            bajo = np.concatenate(([np.nan], indicadores.minimo(l, w)[:-1]))
+            canales[str(d)] = {"alto": ultimos(alto), "bajo": ultimos(bajo)}
+        t_k = [int(x) for x in t[k]]
+        marcas = []
+        if t_k and os.path.exists(self.ruta_diario):
+            with open(self.ruta_diario, newline="", encoding="utf-8") as fh:
+                for f in csv.DictReader(fh):
+                    if f.get("simbolo") != simbolo:
+                        continue
+                    cuando = resumen.instante(f.get("utc"))
+                    if cuando is None:
+                        continue
+                    # La última vela que ya había cerrado cuando se hizo la operación.
+                    i = bisect.bisect_right(t_k, int(cuando.timestamp() * 1000) - ms) - 1
+                    if i >= 0:
+                        marcas.append({"t": t_k[i], "pata": f["pata"], "lado": f["lado"],
+                                       "nocional": float(f.get("nocional") or 0), "motivo": f.get("motivo")})
+        return {
+            **vacio,
+            "t": t_k, "o": [round(float(aperturas.get(x, np.nan)), 10) for x in t_k],
+            "h": ultimos(h), "l": ultimos(l), "c": ultimos(c),
+            "medias": medias, "canales": canales,
+            "puntuacion": [round(float(x), 4) for x in estrategia.puntuacion(h, l, c, vd, self.p)[k]],
+            "marcas": marcas,
+        }
 
     def mercado(self) -> dict:
         """Cierres de la última semana de cada moneda, para las minigráficas del panel."""

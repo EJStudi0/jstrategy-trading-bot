@@ -84,18 +84,22 @@ tail -f bot_stdout.log                    # qué está haciendo
 ```
 
 **Panel:** en el puerto 8787 del servidor, solo en la red de casa (dirección y puerto en `.env`:
-`JORGE_BOT_PANEL_HOST` y `JORGE_BOT_PANEL_PORT`). Pide el token de `JORGE_BOT_PANEL_TOKEN`. Tiene cuatro
-secciones (en el móvil, en una barra abajo; claro u oscuro):
+`JORGE_BOT_PANEL_HOST` y `JORGE_BOT_PANEL_PORT`). Pide el token de `JORGE_BOT_PANEL_TOKEN`. Tiene
+aspecto de plataforma de mercado (oscuro por defecto, también claro): cabecera con el estado y la cuenta
+atrás de la próxima decisión, una cinta con las diez monedas, y cuatro secciones (en el móvil, en una
+barra abajo):
 
-- **Resumen** — patrimonio, ganancia de hoy, de la semana, del mes y media por día; la curva (24 h a
-  todo, o comparada con Bitcoin) con la exposición debajo; de qué está hecha la cartera, y cuándo
-  toca la próxima decisión. Una frase dice en llano qué está haciendo el bot.
+- **Resumen** — patrimonio; ganancia de hoy, de la semana, del mes y media por día, con su minigráfica;
+  la curva (24 h a todo, o comparada con Bitcoin) con la exposición en su propio panel; de qué está
+  hecha la cartera; y las diez monedas de un vistazo. Una frase dice en llano qué está haciendo el bot.
 - **Ganancias** — la ganancia de cada día y de cada mes, en dólares y en la hora de quien mira (la
-  medianoche es la suya), con un calendario y de dónde sale cada tramo: mercado, financiación y
+  medianoche es la suya), con calendario y de dónde sale cada tramo: mercado, financiación y
   comisiones, que suman exacto. Al lado, lo medido en la prueba para el nivel en uso pasado a dólares
   al día con el patrimonio de hoy, año por año, frente a lo real.
-- **Monedas** — precio y última semana, tendencia con los diez relojes que la forman, si Bitcoin
-  frena a las demás, y cuánto de cada base está cubierto; las operaciones, agrupadas por decisión.
+- **Mercado** — lista de seguimiento; gráfica de velas de 4 h de cada moneda con el cruce de medias y
+  el canal que se elijan, las operaciones del bot marcadas y, debajo, su tendencia de −1 a +1 (la misma
+  con la que decide); los diez relojes uno a uno; y las posiciones (base, cobertura, entrada y resultado
+  del corto) y las operaciones agrupadas por decisión.
 - **Mando** — el modo y el nivel de riesgo, cada nivel con lo que dio en la prueba en dólares al día,
   su peor caída y sus años; cada cambio pide confirmación. El ajuste fino (deslizadores) sigue ahí.
 
@@ -113,8 +117,22 @@ Ficheros que escribe: `estado_cartera.json` (la cartera), `estado_bot.json` (man
 con la financiación y las comisiones acumuladas: de ahí sale el reparto de cada día).
 
 El panel autentica con el token en una cabecera, nunca en cookies, y sirve una política de contenido
-estricta: la página solo ejecuta sus propios ficheros y solo habla con el bot. Las gráficas están
-hechas a mano en SVG, sin librerías de fuera.
+estricta: la página solo ejecuta sus propios ficheros y solo habla con el bot.
+
+La página está hecha con React y TypeScript, Tailwind y las gráficas de TradingView Lightweight
+Charts™; las fuentes están en `panel/` y se compilan a `bot/panel_estatico/`, que es lo que sirve el
+bot (no hace falta Node para usarlo, solo para cambiarlo). Las versiones de cada pieza están fijadas,
+todas con al menos dos semanas publicadas. Para cambiar la página:
+
+```bash
+cd panel
+npm ci                      # la primera vez
+npm run dev                 # para verla mientras se cambia (pide la API a un panel de ensayo en el 8790)
+npm test && npm run build   # pruebas y compilación; deja la página nueva en bot/panel_estatico/
+```
+
+`tests/test_panel.py` compara una huella de las fuentes con la de la compilación: si alguien cambia
+`panel/` y no compila, la prueba falla.
 
 Los datos vienen del primer mercado que conteste de `binanceusdm, okx, bitget, gate, kucoinfutures,
 mexc` (se cambia con `JORGE_BOT_MERCADOS`). Binance responde 451 según la salida a internet del
@@ -124,6 +142,7 @@ servidor; el bot cambia solo.
 
 ```bash
 .venv/bin/python -m pytest          # ~40 s
+(cd panel && npm test)              # las cuentas de la página (formato, lo medido en dólares)
 ```
 
 Incluyen: que ningún indicador ni la estrategia miran al futuro; la contabilidad de comisiones,

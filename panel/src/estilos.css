@@ -1,0 +1,193 @@
+@import "tailwindcss";
+
+/* Colores por rol. Oscuro por defecto (sistema de trading); claro con data-tema="claro".
+   Los de las series son la paleta validada (contraste y daltonismo) contra estos fondos. */
+
+@custom-variant claro (&:where([data-tema="claro"], [data-tema="claro"] *));
+
+@theme inline {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --color-fondo: var(--c-fondo);
+  --color-panel: var(--c-panel);
+  --color-panel-2: var(--c-panel-2);
+  --color-panel-3: var(--c-panel-3);
+  --color-borde: var(--c-borde);
+  --color-borde-2: var(--c-borde-2);
+  --color-rejilla: var(--c-rejilla);
+  --color-texto: var(--c-texto);
+  --color-texto-2: var(--c-texto-2);
+  --color-texto-3: var(--c-texto-3);
+  --color-acento: var(--c-acento);
+  --color-acento-2: var(--c-acento-2);
+  --color-sube: var(--c-sube);
+  --color-baja: var(--c-baja);
+  --color-sube-marca: var(--c-sube-marca);
+  --color-baja-marca: var(--c-baja-marca);
+  --color-aviso: var(--c-aviso);
+  --color-serie-1: var(--c-serie-1);
+  --color-serie-2: var(--c-serie-2);
+  --color-serie-3: var(--c-serie-3);
+  --color-serie-4: var(--c-serie-4);
+}
+
+:root,
+[data-tema="oscuro"] {
+  color-scheme: dark;
+  --c-fondo: #07090d;
+  --c-panel: #0d1118;
+  --c-panel-2: #121823;
+  --c-panel-3: #19212e;
+  --c-borde: #1a2230;
+  --c-borde-2: #283346;
+  --c-rejilla: #131a25;
+  --c-texto: #e7ebf3;
+  --c-texto-2: #a3adbf;
+  --c-texto-3: #6b778c;
+  --c-acento: #3b82f6;
+  --c-acento-2: #22d3ee;
+  --c-sube: #34d399;
+  --c-baja: #fb7185;
+  --c-sube-marca: #10b981;
+  --c-baja-marca: #f43f5e;
+  --c-aviso: #f59e0b;
+  --c-serie-1: #3987e5;
+  --c-serie-2: #d95926;
+  --c-serie-3: #199e70;
+  --c-serie-4: #9085e9;
+  --sombra-panel: 0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -20px rgb(0 0 0 / 0.9);
+  --brillo: rgb(59 130 246 / 0.12);
+}
+
+[data-tema="claro"] {
+  color-scheme: light;
+  --c-fondo: #f3f5f9;
+  --c-panel: #ffffff;
+  --c-panel-2: #f6f8fb;
+  --c-panel-3: #edf0f5;
+  --c-borde: #e3e7ee;
+  --c-borde-2: #d3d9e3;
+  --c-rejilla: #eef1f5;
+  --c-texto: #0e1521;
+  --c-texto-2: #4a5466;
+  --c-texto-3: #7a8497;
+  --c-acento: #2563eb;
+  --c-acento-2: #0891b2;
+  --c-sube: #047857;
+  --c-baja: #be123c;
+  --c-sube-marca: #10b981;
+  --c-baja-marca: #f43f5e;
+  --c-aviso: #d97706;
+  --c-serie-1: #2a78d6;
+  --c-serie-2: #eb6834;
+  --c-serie-3: #1baf7a;
+  --c-serie-4: #6250d6;
+  --sombra-panel: 0 1px 2px rgb(15 23 42 / 0.04), 0 10px 30px -18px rgb(15 23 42 / 0.18);
+  --brillo: rgb(37 99 235 / 0.08);
+}
+
+@layer base {
+  html {
+    background: var(--c-fondo);
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--c-fondo);
+    color: var(--c-texto);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv11", "ss01";
+  }
+  :focus-visible {
+    outline: 2px solid var(--c-acento);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: rgb(59 130 246 / 0.35);
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: default;
+  }
+}
+
+@layer components {
+  /* Cifras: monoespaciadas y alineadas, como en una plataforma de mercado. */
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .panel {
+    background: var(--c-panel);
+    border: 1px solid var(--c-borde);
+    border-radius: 14px;
+    box-shadow: var(--sombra-panel);
+  }
+  .rotulo {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--c-texto-3);
+  }
+  .barra-desliza {
+    scrollbar-width: none;
+  }
+  .barra-desliza::-webkit-scrollbar {
+    display: none;
+  }
+  .fondo-rejilla {
+    background-image:
+      linear-gradient(to right, rgb(255 255 255 / 0.025) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(255 255 255 / 0.025) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  [data-tema="claro"] .fondo-rejilla {
+    background-image:
+      linear-gradient(to right, rgb(15 23 42 / 0.035) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(15 23 42 / 0.035) 1px, transparent 1px);
+  }
+}
+
+@keyframes latido {
+  0% { box-shadow: 0 0 0 0 rgb(16 185 129 / 0.55); }
+  70%, 100% { box-shadow: 0 0 0 6px rgb(16 185 129 / 0); }
+}
+@keyframes entra {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes destello-sube {
+  from { background-color: rgb(16 185 129 / 0.22); }
+  to { background-color: transparent; }
+}
+@keyframes destello-baja {
+  from { background-color: rgb(244 63 94 / 0.22); }
+  to { background-color: transparent; }
+}
+.latido { animation: latido 2.4s ease-out infinite; }
+@utility entra {
+  animation: entra 0.28s ease-out both;
+}
+.destello-sube { animation: destello-sube 1.2s ease-out; }
+.destello-baja { animation: destello-baja 1.2s ease-out; }
+
+dialog::backdrop {
+  background: rgb(2 4 8 / 0.62);
+  backdrop-filter: blur(4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

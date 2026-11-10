@@ -203,7 +203,7 @@ class Bot:
         if self.mando != "pausa":
             pedidos = cart.ordenes(self.cartera, precios, base, neto, self.p.banda_base,
                                    self.p.banda_cobertura, self.p.minimo_orden_usdt,
-                                   self.p.modo, forzar=forzar)
+                                   self.p.modo, forzar=forzar, banda_sin_base=self.p.banda_sin_base)
             for pata, s, cantidad in pedidos:
                 fn = self.cartera.operar_contado if pata == "contado" else self.cartera.operar_perp
                 fila = fn(s, cantidad, precios[s], motivo, precios)
@@ -397,6 +397,8 @@ class Bot:
                 "decision": {k: v for k, v in self.decision.items() if k != "monedas"},
                 "ajustes": {k: getattr(self.p, k) for k in config.AJUSTABLES},
                 "ajustables": config.AJUSTABLES,
+                "niveles": config.NIVELES,
+                "nivel": config.nivel_de(self.p),
                 "avisos": self.avisos[-5:],
                 "creada_utc": c.creada_utc,
             }

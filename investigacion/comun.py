@@ -31,6 +31,26 @@ def validacion(g, W, **kw):
     return lab.simular(gg, ww, **kw)
 
 
+COLS_CONSTANCIA = ["cagr_pct", "vol_pct", "sharpe", "max_dd_pct", "calmar", "meses_positivos_pct",
+                   "peor_mes_pct", "peor_12m_pct", "dias_bajo_maximo", "coste_anual_pct",
+                   "financiacion_anual_pct", "neto_medio"]
+
+
+def mascara(g: lab.Cuadricula, desde=None, hasta=None) -> np.ndarray:
+    m = np.ones(g.n, dtype=bool)
+    if desde:
+        m &= g.t >= datos._a_ms(desde)
+    if hasta:
+        m &= g.t < datos._a_ms(hasta)
+    return m
+
+
+def con_anios(res: dict, columnas=None) -> pd.DataFrame:
+    """La tabla de métricas con el rendimiento de cada año al lado."""
+    anios = pd.DataFrame({k: r.por_anio()["rend_pct"] for k, r in res.items()}).T
+    return pd.concat([lab.tabla(res, columnas or COLS_CONSTANCIA), anios], axis=1)
+
+
 def configurar_pandas():
     pd.set_option("display.width", 250)
     pd.set_option("display.max_columns", 40)

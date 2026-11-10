@@ -70,7 +70,8 @@ class Parametros:
     # Ejecución
     modo: str = "base_cubierta"        # "base_cubierta" (contado + corto) o "perpetuos" (solo neto)
     banda_base: float = 0.40           # no se toca la base si se desvía menos del 40 % de su objetivo
-    banda_cobertura: float = 0.20
+    banda_cobertura: float = 0.10      # la exposición de una moneda puede apartarse hasta un 10 % de su base
+    banda_sin_base: float = 0.20       # posiciones solo en perpetuo: desvío relativo a su propio objetivo
     minimo_orden_usdt: float = 10.0
 
     def como_dict(self) -> dict:
@@ -208,5 +209,28 @@ def hay_que_mover(actual: np.ndarray, objetivo: np.ndarray, banda_rel, banda_abs
     mover = np.abs(objetivo - actual) > umbral
     mover |= (objetivo == 0.0) & (actual != 0.0)
     mover |= (np.sign(objetivo) != np.sign(actual)) & (objetivo != 0.0)
+    return mover
+
+
+def hay_que_cubrir(perp: np.ndarray, objetivo: np.ndarray, contado: np.ndarray, sin_tendencia: np.ndarray,
+                   banda: float) -> np.ndarray:
+    """Cuándo se reajusta la cobertura de una moneda que tiene base.
+
+    La exposición (contado + perpetuo) puede apartarse de su objetivo hasta `banda` × el contado que
+    hay: la tolerancia se mide sobre lo que se arriesga en esa moneda, no sobre el tamaño de la
+    cobertura. Medida sobre la cobertura (como estuvo hasta noviembre de 2026) era amplia justo
+    cuando la exposición debía ser pequeña: con la tendencia en contra podía quedarse hasta un
+    20 % de la base sin cubrir.
+
+    En los dos extremos no hay tolerancia: sin cobertura (tendencia plena) se cierra entera, y con
+    la tendencia en contra (`sin_tendencia`) se cubre todo lo que hay.
+    """
+    perp = np.asarray(perp, dtype=np.float64)
+    objetivo = np.asarray(objetivo, dtype=np.float64)
+    falta = np.abs(objetivo - perp)
+    mover = falta > banda * np.abs(np.asarray(contado, dtype=np.float64))
+    mover |= (objetivo == 0.0) & (perp != 0.0)
+    mover |= np.asarray(sin_tendencia, dtype=bool) & (falta > 1e-12)
+    mover |= (np.sign(objetivo) != np.sign(perp)) & (objetivo != 0.0)
     return mover
 

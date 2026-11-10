@@ -52,7 +52,7 @@ def correr(desde, hasta) -> dict:
     gg = g.recorte(desde, hasta)
     res = {
         "principal (lo que corre hoy)": lab.simular_cubierta(gg, o.base[m], o.neto[m], p.banda_base, p.banda_cobertura),
-        "relativa sola, talla entera": lab.simular(gg, Wr[m], banda_rel=p.banda_cobertura),
+        "relativa sola, talla entera": lab.simular(gg, Wr[m], banda_rel=p.banda_sin_base),
         f"PRINCIPAL + RELATIVA a {TALLA} (candidata)": lab.simular_cubierta(
             gg, o.base[m], o.neto[m], p.banda_base, p.banda_cobertura, extra_perp=TALLA * Wr[m]),
         "principal + relativa a 1,0": lab.simular_cubierta(

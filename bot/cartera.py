@@ -241,7 +241,7 @@ class Cartera:
 
 def ordenes(cartera: Cartera, precios: dict, base: dict, neto: dict, banda_base: float,
             banda_cobertura: float, minimo_usdt: float, modo: str = "base_cubierta",
-            forzar: bool = False) -> list:
+            forzar: bool = False, banda_sin_base: float = 0.20) -> list:
     """Órdenes para llevar la cartera a los pesos objetivo.
 
     `base` y `neto` son pesos objetivo por símbolo. Devuelve una lista de
@@ -253,8 +253,11 @@ def ordenes(cartera: Cartera, precios: dict, base: dict, neto: dict, banda_base:
     tengo». Así, con la tendencia plena la cobertura es exactamente cero aunque
     la base se haya desviado dentro de su banda, y con la tendencia en contra
     cubre todo lo que hay y no una cifra teórica.
+
+    La cobertura se reajusta cuando la exposición se aparta de su objetivo más de
+    `banda_cobertura` × el contado de esa moneda (`estrategia.hay_que_cubrir`).
     """
-    from bot.estrategia import hay_que_mover   # import local: evita ciclo
+    from bot.estrategia import hay_que_cubrir, hay_que_mover   # import local: evita ciclo
 
     pat = cartera.patrimonio(precios)
     if pat <= 0:
@@ -282,7 +285,11 @@ def ordenes(cartera: Cartera, precios: dict, base: dict, neto: dict, banda_base:
             w_perp_obj = w_neto                     # sin base: la exposición va entera en perpetuo
         if abs(w_perp_obj) * pat < minimo_usdt:
             w_perp_obj = 0.0
-        if forzar or bool(hay_que_mover([w_perp], [w_perp_obj], banda_cobertura)[0]):
+        if w_base > 0:
+            mover = hay_que_cubrir([w_perp], [w_perp_obj], [w_contado], [w_neto == 0.0], banda_cobertura)[0]
+        else:
+            mover = hay_que_mover([w_perp], [w_perp_obj], banda_sin_base)[0]
+        if forzar or bool(mover):
             delta = (w_perp_obj - w_perp) * pat
             if abs(delta) >= minimo_usdt:
                 out_perp.append(("perp", s, delta / px))

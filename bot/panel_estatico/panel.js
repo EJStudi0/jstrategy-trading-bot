@@ -130,6 +130,7 @@ function pintarEstado(e) {
       " operaciones · riesgo previsto de la cartera " + pct(d.vol_prevista) + " anual"
     : "Aún no ha decidido: está esperando datos.";
 
+  pintarNiveles(e);
   pintarAjustes(e);
   const avisos = e.avisos || [];
   $("avisos").hidden = avisos.length === 0;
@@ -162,6 +163,44 @@ function medidor(valor) {
   }
   caja.append(pista, numero);
   return caja;
+}
+
+// ── niveles de riesgo ─────────────────────────────────────────────────────────
+
+function decimal(x) { return Math.abs(x).toFixed(1).replace(".", ","); }
+
+function pintarNiveles(e) {
+  const caja = $("niveles");
+  const niveles = e.niveles || {};
+  if (caja.childElementCount === 0) {
+    for (const [clave, n] of Object.entries(niveles)) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "boton";
+      b.dataset.nivel = clave;
+      b.textContent = n.nombre;
+      b.addEventListener("click", () => elegirNivel(n));
+      caja.appendChild(b);
+    }
+  }
+  for (const b of caja.children) b.setAttribute("aria-pressed", String(b.dataset.nivel === e.nivel));
+  const n = niveles[e.nivel];
+  $("nivel-explica").textContent = n
+    ? n.nombre + ": en la prueba (2024 → nov 2026) dio un " + conSigno(n.anual_pct, decimal(n.anual_pct)) +
+      " % al año y su peor caída fue del " + conSigno(n.caida_pct, decimal(n.caida_pct)) + " %. No es una promesa."
+    : "Riesgo puesto a medida: no coincide con ningún nivel medido.";
+}
+
+async function elegirNivel(n) {
+  const estado = $("ajustes-estado");
+  try {
+    await api("/api/ajustes", n.ajustes);
+    ajustesPintados = false;          // los deslizadores se repintan con el nivel nuevo
+    estado.textContent = "Nivel " + n.nombre + " guardado. Se aplica en la próxima decisión (cada 4 horas).";
+    await refrescar(true);
+  } catch (e) {
+    if (e.message !== "401") estado.textContent = "No se guardó: " + e.message;
+  }
 }
 
 // ── ajustes ───────────────────────────────────────────────────────────────────
@@ -211,6 +250,7 @@ $("form-ajustes").addEventListener("submit", async (ev) => {
   try {
     await api("/api/ajustes", cambios);
     estado.textContent = "Guardado. Se aplica en la próxima decisión (cada 4 horas).";
+    await refrescar(true);
   } catch (e) {
     if (e.message !== "401") estado.textContent = "No se guardó: " + e.message;
   }

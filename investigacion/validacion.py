@@ -26,11 +26,12 @@ def simular(p: est.Parametros, desde=None, hasta=None, **kw) -> lab.Resultado:
         m &= g.t < datos._a_ms(hasta)
     gg = g.recorte(desde, hasta)
     if p.modo == "perpetuos":
-        return lab.simular(gg, o.neto[m], banda_rel=p.banda_cobertura, **kw)
+        return lab.simular(gg, o.neto[m], banda_rel=p.banda_sin_base, **kw)
     mult = kw.pop("coste_mult", 1.0)
     return lab.simular_cubierta(gg, o.base[m], o.neto[m], p.banda_base, p.banda_cobertura,
                                 coste_contado=lab.COSTE_CONTADO * mult,
-                                coste_perp=lab.COSTE_POR_LADO * mult, **kw)
+                                coste_perp=lab.COSTE_POR_LADO * mult,
+                                banda_sin_base=p.banda_sin_base, **kw)
 
 
 def variantes() -> dict:

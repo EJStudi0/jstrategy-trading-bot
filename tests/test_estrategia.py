@@ -149,6 +149,27 @@ def test_hay_que_mover():
     assert g(0.10, 0.16)
 
 
+def test_hay_que_cubrir_mide_la_tolerancia_sobre_la_base():
+    f = lambda perp, obj, contado=0.10, sin_tendencia=False, banda=0.10: bool(
+        est.hay_que_cubrir([perp], [obj], [contado], [sin_tendencia], banda)[0])
+    assert not f(-0.050, -0.058)          # se aparta 0,008: menos del 10 % de la base (0,010)
+    assert f(-0.050, -0.062)              # 0,012: fuera
+    # Con poca cobertura la tolerancia sigue siendo la de la base (sobre la cobertura sería 0,0016).
+    assert not f(-0.002, -0.008)
+    # Y con mucha cobertura no crece (sobre la cobertura sería 0,018).
+    assert f(-0.075, -0.090)
+    # Sin tendencia se cubre todo lo que hay, por poco que falte...
+    assert f(-0.095, -0.100, sin_tendencia=True)
+    assert not f(-0.100, -0.100, sin_tendencia=True)      # ...y lo ya cubierto no se toca
+    assert not f(-0.095, -0.100)                          # con algo de tendencia, eso es una migaja
+    assert f(-0.004, 0.0)                 # quitar la cobertura se ejecuta siempre
+    assert f(-0.001, 0.002)               # cambio de signo, siempre
+    assert not f(0.0, 0.0)
+    # La tolerancia escala con la base de esa moneda.
+    assert f(-0.050, -0.058, contado=0.05) and not f(-0.050, -0.058, contado=0.20)
+    assert f(-0.050, -0.058, banda=0.05) and not f(-0.050, -0.062, banda=0.15)
+
+
 def test_apalancamiento_permite_pasar_de_la_base_y_por_defecto_no():
     n = 1200
     sube = 100 * np.exp(np.linspace(0, 3, n))

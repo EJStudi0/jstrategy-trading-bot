@@ -31,12 +31,33 @@ AJUSTABLES = {
                        "etiqueta": "Cobertura máxima (100 % = neutral)"},
 }
 
-# Perfiles medidos en investigacion/perfiles.py. Validación 2024-01 → 2026-11:
-#   prudente  (vol_cartera 0,15)                      +9 %/año, caída máxima −13 %
-#   moderado  (por defecto)                          +12 %/año, caída máxima −18 %
-#   decidido  (vol_cartera 0,40, apalancamiento 1,5) +16 %/año, caída máxima −27 %
-#   agresivo  (vol_cartera 0,60, apalancamiento 2)   +23 %/año, caída máxima −37 %
+# Niveles de riesgo: la misma estrategia con más o menos exposición a la tendencia.
+# `anual_pct` y `caida_pct` son lo medido en la prueba (2024-01 → 2026-11) por
+# investigacion/perfiles.py; tests/test_niveles.py las recalcula y falla si dejan de ser ciertas.
 # Por encima de ×2 la rentabilidad deja de subir y la caída no: no se ofrece.
+NIVELES = {
+    "constante": {"nombre": "Constante", "ajustes": {"vol_cartera": 0.10, "apalancamiento": 1.0},
+                  "anual_pct": 8.2, "caida_pct": -8.7},
+    "prudente":  {"nombre": "Prudente",  "ajustes": {"vol_cartera": 0.15, "apalancamiento": 1.0},
+                  "anual_pct": 9.5, "caida_pct": -12.1},
+    "moderado":  {"nombre": "Moderado",  "ajustes": {"vol_cartera": 0.25, "apalancamiento": 1.0},
+                  "anual_pct": 12.4, "caida_pct": -17.6},
+    "decidido":  {"nombre": "Decidido",  "ajustes": {"vol_cartera": 0.40, "apalancamiento": 1.5},
+                  "anual_pct": 16.6, "caida_pct": -27.4},
+    "agresivo":  {"nombre": "Agresivo",  "ajustes": {"vol_cartera": 0.60, "apalancamiento": 2.0},
+                  "anual_pct": 22.7, "caida_pct": -37.3},
+}
+
+
+def nivel_de(p: Parametros) -> Optional[str]:
+    """El nivel que coincide con los parámetros en uso, o None si están puestos a medida."""
+    de_fabrica = Parametros()
+    if p.tope_base != de_fabrica.tope_base or p.cobertura_max != de_fabrica.cobertura_max:
+        return None
+    for clave, nivel in NIVELES.items():
+        if all(abs(getattr(p, k) - v) < 1e-9 for k, v in nivel["ajustes"].items()):
+            return clave
+    return None
 
 MANDOS = ("auto", "pausa", "neutral", "fuera")
 

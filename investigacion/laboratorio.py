@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 from bot import datos
-from bot.estrategia import hay_que_mover
+from bot.estrategia import hay_que_cubrir, hay_que_mover
 
 UNIVERSO = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT",
             "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "LINKUSDT", "LTCUSDT"]
@@ -131,6 +131,14 @@ class Resultado:
         pico = np.maximum.accumulate(self.patrimonio)
         dd = self.patrimonio / pico - 1
         mensual = np.expm1(np.log1p(d).groupby([d.index.year, d.index.month]).sum())
+        trimestral = np.expm1(np.log1p(d).groupby([d.index.year, d.index.quarter]).sum())
+        diaria = (1.0 + d).cumprod()
+        doce = (diaria / diaria.shift(365) - 1.0).dropna()
+        bajo = (diaria < diaria.cummax() * 0.999).to_numpy()
+        racha = peor_racha = 0
+        for x in bajo:                       # días seguidos por debajo del máximo anterior
+            racha = racha + 1 if x else 0
+            peor_racha = max(peor_racha, racha)
         return {
             "anios": round(anios, 2),
             "total_pct": round((total - 1) * 100, 1),
@@ -142,6 +150,9 @@ class Resultado:
             "calmar": round(cagr / abs(float(dd.min())), 2) if dd.min() < 0 else 0.0,
             "meses_positivos_pct": round(float((mensual > 0).mean()) * 100, 0),
             "peor_mes_pct": round(float(mensual.min()) * 100, 1),
+            "trimestres_positivos_pct": round(float((trimestral > 0).mean()) * 100, 0),
+            "peor_12m_pct": round(float(doce.min()) * 100, 1) if len(doce) else float("nan"),
+            "dias_bajo_maximo": int(peor_racha),
             "rotacion_anual": round(float(self.rotacion.sum() / anios), 1),
             "coste_anual_pct": round(float(self.coste.sum() / anios) * 100, 2),
             "financiacion_anual_pct": round(float(self.financiacion.sum() / anios) * 100, 2),
@@ -269,7 +280,8 @@ def doble_pata(g: Cuadricula, W_contado: np.ndarray, W_perp: np.ndarray):
 def simular_cubierta(g: Cuadricula, base: np.ndarray, neto: np.ndarray,
                      banda_base: float, banda_cobertura: float,
                      coste_contado: float = COSTE_CONTADO, coste_perp: float = COSTE_POR_LADO,
-                     con_financiacion: bool = True, extra_perp: Optional[np.ndarray] = None) -> Resultado:
+                     con_financiacion: bool = True, extra_perp: Optional[np.ndarray] = None,
+                     banda_sin_base: float = 0.20, cobertura_antigua: bool = False) -> Resultado:
     """Simula «base en contado + cobertura en perpetuo» con las MISMAS reglas que el bot.
 
     La regla que importa es la de `bot.cartera.ordenes`: la cobertura se pide como
@@ -277,6 +289,10 @@ def simular_cubierta(g: Cuadricula, base: np.ndarray, neto: np.ndarray,
     las dos patas como libros independientes y dejaba que la exposición neta se
     desviara con la deriva de la base; el bot no hace eso, así que medir con
     aquella habría sido medir otra cosa.
+
+    `cobertura_antigua` reajusta la cobertura como hasta noviembre de 2026 (tolerancia del 20 % de
+    la propia cobertura). No es lo que hace el bot: está para repetir `banda_cobertura.py` y los
+    estudios que se midieron entonces.
     """
     T, N = base.shape
     base = np.nan_to_num(base, nan=0.0)
@@ -304,7 +320,12 @@ def simular_cubierta(g: Cuadricula, base: np.ndarray, neto: np.ndarray,
         if extra_perp is not None:
             # Posiciones en perpetuo que se suman a la cobertura (la manga de tendencia relativa).
             obj_p = obj_p + np.where(cotiza[k], np.nan_to_num(extra_perp[k]), 0.0)
-        op_p = np.where(hay_que_mover(pp, obj_p, banda_cobertura), obj_p - pp, 0.0)
+        if cobertura_antigua:
+            mover = hay_que_mover(pp, obj_p, 0.20)
+        else:
+            mover = np.where(b > 0, hay_que_cubrir(pp, obj_p, pc, n == 0.0, banda_cobertura),
+                             hay_que_mover(pp, obj_p, banda_sin_base))
+        op_p = np.where(mover, obj_p - pp, 0.0)
         pp = pp + op_p
         c = coste_contado * np.abs(op_c).sum() + coste_perp * np.abs(op_p).sum()
         r = R[k + 1]

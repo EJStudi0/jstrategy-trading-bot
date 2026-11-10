@@ -10,15 +10,13 @@ from bot import estrategia as est
 from investigacion import comun, laboratorio as lab
 from investigacion.validacion import simular
 
-PERFILES = {
-    "prudente": dict(vol_cartera=0.15),
-    "moderado (por defecto)": dict(),
-    "decidido": dict(vol_cartera=0.40, apalancamiento=1.5),
-    "agresivo": dict(vol_cartera=0.60, apalancamiento=2.0),
-    "muy agresivo": dict(vol_cartera=0.90, apalancamiento=3.0),
-}
-COLS = ["cagr_pct", "vol_pct", "sharpe", "max_dd_pct", "peor_mes_pct", "coste_anual_pct",
-        "financiacion_anual_pct", "neto_medio"]
+from bot import config
+
+# Los que ofrece el panel (`config.NIVELES`) y, para ver por qué no se ofrece más, uno por encima.
+PERFILES = {**{f"{k} ({v['nombre']})": v["ajustes"] for k, v in config.NIVELES.items()},
+            "muy agresivo (no se ofrece)": dict(vol_cartera=0.90, apalancamiento=3.0)}
+COLS = ["cagr_pct", "vol_pct", "sharpe", "max_dd_pct", "meses_positivos_pct", "peor_mes_pct", "peor_12m_pct",
+        "dias_bajo_maximo", "coste_anual_pct", "financiacion_anual_pct", "neto_medio"]
 
 if __name__ == "__main__":
     comun.configurar_pandas()

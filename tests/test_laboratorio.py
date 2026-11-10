@@ -57,6 +57,37 @@ def test_cubierto_al_cien_no_gana_ni_pierde_con_el_precio():
     assert g2.F[:, 0].sum() == 0, "el contado no paga financiación"
 
 
+def test_base_cubierta_sin_tendencia_queda_neutral():
+    """Al perderse la tendencia la cobertura se completa aunque falte poco: el precio deja de mover el patrimonio."""
+    c = np.array([[100.0], [100.0], [100.0], [50.0], [50.0]])
+    base = np.full((5, 1), 0.5)
+    neto = np.array([[0.04], [0.04], [0.0], [0.0], [0.0]])       # un 8 % de la base expuesta, y luego nada
+    r = lab.simular_cubierta(cuadricula(c), base, neto, 0.4, 0.1, coste_contado=0.0, coste_perp=0.0)
+    assert r.neto[2] == pytest.approx(0.04)
+    assert r.neto[3] == pytest.approx(0.0, abs=1e-12), "faltaba menos que la tolerancia, pero sin tendencia se cubre todo"
+    assert r.patrimonio[-1] == pytest.approx(1.0), "la caída del 50 % no le toca"
+
+
+def test_base_cubierta_tolera_desvios_pequeños_de_la_exposicion():
+    c = np.full((6, 1), 100.0)
+    base = np.full((6, 1), 0.5)
+    neto = np.array([[0.45], [0.42], [0.42], [0.38], [0.38], [0.38]])
+    r = lab.simular_cubierta(cuadricula(c), base, neto, 0.4, 0.1, coste_contado=0.0, coste_perp=0.0)
+    assert r.rotacion[2] == 0.0, "0,03 de desvío es menos que el 10 % de la base (0,05): no se toca"
+    assert r.neto[2] == pytest.approx(0.45)
+    assert r.rotacion[4] == pytest.approx(0.07), "0,07 ya pasa: se reajusta entera"
+    assert r.neto[4] == pytest.approx(0.38)
+
+
+def test_la_tolerancia_de_la_cobertura_es_sobre_el_contado_que_hay():
+    """Si la base se ha desviado dentro de su banda, la tolerancia sale de lo que hay, no del objetivo."""
+    c = np.full((4, 1), 100.0)
+    base = np.array([[0.5], [0.4], [0.4], [0.4]])                # el contado se queda en 0,5 (banda del 40 %)
+    neto = np.array([[0.25], [0.164], [0.164], [0.164]])         # la cobertura pasaría de 0,25 a 0,295
+    r = lab.simular_cubierta(cuadricula(c), base, neto, 0.4, 0.1, coste_contado=0.0, coste_perp=0.0)
+    assert r.rotacion[2] == 0.0, "0,045 es menos que el 10 % del contado real (0,05), aunque pase del 10 % del objetivo (0,04)"
+
+
 def test_la_banda_evita_reajustes_pequeños():
     rng = np.random.default_rng(0)
     c = 100 * np.exp(np.cumsum(rng.normal(0, 0.01, (300, 2)), axis=0))

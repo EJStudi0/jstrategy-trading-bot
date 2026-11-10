@@ -142,6 +142,8 @@ td.suave { color: var(--tinta-2); }
 .error { color: var(--baja); font-size: 14px; margin-top: 8px; min-height: 1em; }
 
 /* Ajustes */
+.niveles { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 10px; }
+.niveles + .nota { margin: 10px 0 18px; }
 .ajustes { display: grid; gap: 16px; }
 .ajuste label { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; margin-bottom: 6px; }
 .ajuste output { font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }

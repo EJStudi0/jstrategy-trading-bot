@@ -245,6 +245,40 @@ def test_las_bandas_evitan_operar_por_migajas():
     assert [p[0] for p in cambio] == ["perp"] and cambio[0][2] < 0, "tendencia peor → más corto"
 
 
+def test_con_la_tendencia_en_contra_se_cubre_todo_lo_que_hay():
+    """Una cobertura casi completa no basta cuando la tendencia es contraria: se completa."""
+    c = nueva()
+    base = {"BTCUSDT": 0.40}
+    ejecutar(c, cart.ordenes(c, PRECIOS, base, {"BTCUSDT": 0.03}, 0.4, 0.1, 10.0))   # queda expuesto un 7,5 % de la base
+    assert cart.ordenes(c, PRECIOS, base, {"BTCUSDT": 0.02}, 0.4, 0.1, 10.0) == [], "con algo de tendencia es una migaja"
+    pedidos = cart.ordenes(c, PRECIOS, base, {"BTCUSDT": 0.0}, 0.4, 0.1, 10.0)
+    assert [p[0] for p in pedidos] == ["perp"] and pedidos[0][2] < 0
+    ejecutar(c, pedidos)
+    wc, wp = c.pesos(PRECIOS)["BTCUSDT"]
+    assert wc + wp == pytest.approx(0.0, abs=1e-4), "sin tendencia, exposición neta cero"
+    assert cart.ordenes(c, PRECIOS, base, {"BTCUSDT": 0.0}, 0.4, 0.1, 10.0) == [], "y ya no hay nada que hacer"
+
+
+def test_la_tolerancia_de_la_cobertura_se_mide_sobre_la_base():
+    c = nueva()
+    base = {"BTCUSDT": 0.40}
+    ejecutar(c, cart.ordenes(c, PRECIOS, base, {"BTCUSDT": 0.36}, 0.4, 0.1, 10.0))   # cobertura pequeña: 10 % de la base
+    # Del 90 % al 85 % expuesto la cobertura cambia un 50 %, pero la exposición solo un 5 % de la base.
+    assert cart.ordenes(c, PRECIOS, base, {"BTCUSDT": 0.34}, 0.4, 0.1, 10.0) == []
+    # Del 90 % al 75 % son 15 puntos de la base: fuera de la tolerancia.
+    cambio = cart.ordenes(c, PRECIOS, base, {"BTCUSDT": 0.30}, 0.4, 0.1, 10.0)
+    assert [p[0] for p in cambio] == ["perp"] and cambio[0][2] < 0
+
+
+def test_sin_base_la_banda_es_relativa_al_objetivo():
+    c = nueva()
+    ejecutar(c, cart.ordenes(c, PRECIOS, {}, {"BTCUSDT": 0.20}, 0.4, 0.1, 10.0, modo="perpetuos"))
+    assert cart.ordenes(c, PRECIOS, {}, {"BTCUSDT": 0.23}, 0.4, 0.1, 10.0, modo="perpetuos") == []      # +15 % < 20 %
+    assert cart.ordenes(c, PRECIOS, {}, {"BTCUSDT": 0.26}, 0.4, 0.1, 10.0, modo="perpetuos") != []
+    assert cart.ordenes(c, PRECIOS, {}, {"BTCUSDT": 0.23}, 0.4, 0.1, 10.0, modo="perpetuos",
+                        banda_sin_base=0.05) != []
+
+
 def test_minimo_de_orden():
     c = nueva(100.0)
     assert cart.ordenes(c, PRECIOS, {"BTCUSDT": 0.05}, {"BTCUSDT": 0.05}, 0.4, 0.2, 10.0) == []

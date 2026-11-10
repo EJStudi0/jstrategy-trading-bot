@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel Bot Jorge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/static/panel.css">
+</head>
+<body>
+
+<div class="barra-id">
+  <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+    <span class="marca">BOT&nbsp;JORGE</span>
+    <span class="chip m" id="chip-modo">—</span>
+    <span class="m" style="font-size:12px;color:var(--texto-2)" id="id-symbol">—</span>
+    <span class="m" style="font-size:12px;color:var(--texto-3)" id="id-config">—</span>
+  </div>
+  <span class="m" style="font-size:11px;color:var(--texto-3)" id="id-reloj">—</span>
+</div>
+
+<div class="salud" id="salud" data-estado="sin_conexion">
+  <span class="punto"></span>
+  <span class="etiqueta m" id="salud-etiqueta">CONECTANDO</span>
+  <span class="detalle m" id="salud-detalle">—</span>
+  <span class="relleno"></span>
+  <span class="detalle m" id="salud-extra"></span>
+</div>
+
+<div class="pestanas" role="tablist">
+  <button role="tab" aria-selected="true"  data-vista="v-estado">Estado</button>
+  <button role="tab" aria-selected="false" data-vista="v-parametros">Parámetros</button>
+  <button role="tab" aria-selected="false" data-vista="v-analisis">Análisis</button>
+</div>
+
+<!-- ── ESTADO ──────────────────────────────────────────────────────────── -->
+<section class="vista" id="v-estado">
+  <div class="rejilla-3">
+    <div class="celda">
+      <div class="lbl" style="margin-bottom:12px">Mercado <span class="sello-viejo">· último valor conocido</span></div>
+      <div class="cifra-grande m mercado-valor" id="mkt-precio">—</div>
+      <div style="margin-top:14px" id="mkt-detalle"></div>
+    </div>
+
+    <div class="celda">
+      <div class="lbl" style="margin-bottom:12px">Capital</div>
+      <div style="display:flex;align-items:baseline;gap:10px">
+        <span class="cifra-grande m" id="cap-equity">—</span>
+        <span class="m" style="font-size:12px;color:var(--texto-3)">USDT</span>
+      </div>
+      <div class="m" style="font-size:12px;margin-top:4px" id="cap-variacion">—</div>
+      <div style="margin-top:14px" id="cap-detalle"></div>
+    </div>
+
+    <div class="celda">
+      <div class="lbl" style="margin-bottom:12px">Control</div>
+      <button class="ancho" id="btn-pausa" style="margin-bottom:10px"><span id="btn-pausa-txt">—</span></button>
+      <div id="zona-cierre"></div>
+      <div class="m" style="font-size:10px;color:var(--texto-3);line-height:1.6;border-top:1px solid var(--linea-suave);padding-top:10px;margin-top:14px">
+        Única superficie de control del bot.
+      </div>
+    </div>
+  </div>
+
+  <div class="punteria">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px">
+      <span class="lbl">Puntería · <span id="pt-n">—</span> trades cerrados</span>
+      <span class="m" style="font-size:11px;color:var(--texto-3)" id="pt-nota">—</span>
+    </div>
+    <div class="punteria-cifras">
+      <div>
+        <div class="punteria-cifra m" id="pt-wr">—</div>
+        <div class="lbl" style="margin-top:8px">Win rate real</div>
+      </div>
+      <div>
+        <div class="punteria-cifra m" style="color:var(--texto-2)" id="pt-be">—</div>
+        <div class="lbl" style="margin-top:8px">Necesario para no perder</div>
+      </div>
+      <div style="border-left:1px solid var(--linea);padding-left:32px">
+        <div class="m" style="font-size:20px" id="pt-deficit">—</div>
+        <div class="lbl" style="margin-top:6px">Diferencia</div>
+      </div>
+    </div>
+    <div class="escala" id="pt-escala"></div>
+    <div style="display:flex;justify-content:space-between">
+      <span class="m" style="font-size:10px;color:var(--texto-3)">0%</span>
+      <span class="m" style="font-size:10px;color:var(--texto-3)">100%</span>
+    </div>
+  </div>
+
+  <div id="kpis" class="rejilla-3"></div>
+</section>
+
+<!-- ── PARÁMETROS ──────────────────────────────────────────────────────── -->
+<section class="vista" id="v-parametros" hidden>
+  <div style="padding:14px 24px;border-bottom:1px solid var(--linea)">
+    <div class="aviso">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" style="flex-shrink:0;margin-top:1px">
+        <path d="M7.5 1.8 L14 13.2 H1 Z" stroke="#e0a33e" stroke-width="1.3" stroke-linejoin="round"></path>
+        <path d="M7.5 6 V9.3" stroke="#e0a33e" stroke-width="1.3" stroke-linecap="round"></path>
+        <circle cx="7.5" cy="11.2" r="0.8" fill="#e0a33e"></circle>
+      </svg>
+      <div>
+        <strong style="color:var(--ambar);font-weight:500">Reiniciar el bot borra el contador de pérdida diaria.</strong>
+        El tracker diario vive en memoria y no se persiste, así que un reinicio pone el PnL del día a cero y desarma
+        la pausa automática. Todo lo marcado <span class="m" style="color:var(--verde)">CALIENTE</span> se aplica sin tocar el proceso.
+      </div>
+    </div>
+  </div>
+  <div id="lista-parametros"></div>
+  <div class="barra-aplicar">
+    <span class="m" style="font-size:12px" id="param-estado">—</span>
+    <span style="flex-grow:1"></span>
+    <button class="fantasma" id="btn-descartar" hidden>DESCARTAR</button>
+    <button class="verde" id="btn-aplicar" hidden>APLICAR EN CALIENTE</button>
+  </div>
+</section>
+
+<!-- ── ANÁLISIS ────────────────────────────────────────────────────────── -->
+<section class="vista" id="v-analisis" hidden>
+  <div style="padding:20px 24px;border-bottom:1px solid var(--linea)">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:6px">
+      <span class="lbl">Equity realizada</span>
+      <span class="m" style="font-size:11px;color:var(--texto-4)">indexada por trade cerrado — los huecos de calendario no se representan</span>
+    </div>
+    <div id="grafico-equity"></div>
+  </div>
+
+  <div class="rejilla-3" id="cortes"></div>
+
+  <div style="padding:20px 24px 8px 24px"><span class="lbl">Trades</span></div>
+  <div style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr>
+          <th class="lbl">Apertura</th><th class="lbl">Lado</th><th class="lbl">Score</th>
+          <th class="lbl">Killzone</th><th class="lbl" style="min-width:260px">Cómo se cerró</th>
+          <th class="lbl" style="text-align:right">PnL</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-trades"></tbody>
+    </table>
+  </div>
+</section>
+
+<script src="/static/panel.js"></script>
+</body>
+</html>

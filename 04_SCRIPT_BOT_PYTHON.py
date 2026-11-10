@@ -339,6 +339,16 @@ CONFIG = {
 
     # Intervalo del loop: 5 min es suficiente (velas de 15m a 4H no requieren polling por segundo)
     "loop_interval_seconds": 300,
+    # Cuántos segundos sin una vela nueva antes de considerar los datos viejos.
+    # Al triple de esto el bot se declara CIEGO y deja de decir que está activo.
+    "blind_after_seconds": _env_float("JORGE_BOT_BLIND_AFTER_SECONDS", 900),
+    # Fallos seguidos tras los que se rehace el cliente de exchange.
+    "rebuild_client_after_failures": _env_float("JORGE_BOT_REBUILD_AFTER_FAILURES", 3),
+    # Panel web (hilo daemon dentro de este mismo proceso). Se sirve solo a la
+    # LAN y detrás de token: abre y cierra posiciones, no se deja sin llave.
+    "panel_enabled": os.environ.get("JORGE_BOT_PANEL", "1") not in ("0", "false", "no"),
+    "panel_host": os.environ.get("JORGE_BOT_PANEL_HOST", "127.0.0.1"),
+    "panel_port": int(os.environ.get("JORGE_BOT_PANEL_PORT", "8787")),
 
     # Persistencia local
     "trade_journal_file": os.getenv("JORGE_BOT_JOURNAL_FILE", "jorge_trade_journal.csv"),
@@ -354,6 +364,19 @@ CONFIG = {
 
 # Control de pausa global (modificado desde Telegram con /pause y /resume)
 _BOT_PAUSED = [False]
+
+# Salud de la conexión de datos. El bot pasó 20 días imprimiendo "✅ ACTIVO"
+# sin recibir una sola vela porque nadie llevaba esta cuenta: los errores se
+# tragaban en el try por símbolo y el resumen del ciclo no los miraba.
+# Último análisis publicado por el bucle, por símbolo. Lo lee el panel web.
+_ULTIMO_ANALISIS: dict = {}
+
+_SALUD: dict = {
+    "ultimo_ok_utc":   None,   # última vez que llegaron velas de verdad
+    "ultimo_error":    None,
+    "fallos_seguidos": 0,
+    "fetches_ok":      0,
+}
 
 # Rastreador diario: se reinicia automáticamente cada medianoche UTC
 _DAILY_TRACKER: dict = {
@@ -491,47 +514,154 @@ def _append_trade_journal(event: dict, cfg: dict = CONFIG,
         writer.writerow(row)
 
 
+# Eventos que por naturaleza liquidan lo que quede de la posición. Se usan solo
+# como red de seguridad: la señal primaria es el tamaño restante, no el nombre.
+_FULL_CLOSE_PREFIXES = ("hard_stop", "lock_exit", "trailing_stop", "hedge_close", "hedge_force_close")
+
+
+def _group_journal_into_trades(df: pd.DataFrame) -> list:
+    """Agrupa los eventos del journal en trades siguiendo el TAMAÑO de la posición.
+
+    Deliberadamente no se filtra por lista de nombres de evento. Esa lista se
+    desincronizó del journal — `tp1_short`, `hard_stop_short` y `lock_exit`
+    nunca entraron en ella — y como las cinco pérdidas del histórico eran todas
+    `hard_stop_short`, las métricas reportaban 100% de aciertos sobre una
+    estrategia que perdía dinero. Aquí un evento cuenta como salida si trae
+    `pnl_usdt`, y el trade se cierra cuando el tamaño restante vuelve a cero:
+    dos señales que salen del dato y no del nombre.
+    """
+    if df.empty or "event" not in df.columns:
+        return []
+
+    eventos = df["event"].astype(str)
+    col_size = pd.to_numeric(df.get("size"), errors="coerce").fillna(0.0)
+    col_pnl = pd.to_numeric(df.get("pnl_usdt"), errors="coerce").fillna(0.0)
+
+    def _campo(nombre: str, i: int):
+        if nombre not in df.columns:
+            return None
+        valor = df[nombre].iat[i]
+        return None if pd.isna(valor) else valor
+
+    trades: list = []
+    actual: Optional[dict] = None
+
+    for i in range(len(df)):
+        evento = eventos.iat[i]
+        size = float(col_size.iat[i])
+        pnl = float(col_pnl.iat[i])
+
+        if evento.startswith("open_"):
+            if actual is not None:
+                trades.append(actual)
+            actual = {
+                "abierto_utc": _campo("timestamp", i),
+                "cerrado_utc": None,
+                "side": _campo("side", i),
+                "score": _campo("score", i),
+                "regime": _campo("regime", i),
+                "killzone": _campo("killzone", i),
+                "tamano_abierto": size,
+                "restante": size,
+                "pnl_usdt": 0.0,
+                "salidas": [],
+                "cerrado": False,
+            }
+            continue
+
+        if actual is None or actual["cerrado"]:
+            continue
+
+        # Un DCA amplía la posición: sube el listón de lo que hay que cerrar.
+        if evento.startswith("dca"):
+            actual["tamano_abierto"] += size
+            actual["restante"] += size
+            continue
+
+        if pnl == 0.0 and size == 0.0:
+            continue  # armados, cancelaciones y demás ruido sin efecto en la posición
+
+        actual["pnl_usdt"] += pnl
+        actual["restante"] -= size
+        actual["salidas"].append(evento)
+        actual["cerrado_utc"] = _campo("timestamp", i)
+
+        tolerancia = max(actual["tamano_abierto"] * 0.005, 1e-9)
+        if actual["restante"] <= tolerancia or evento.startswith(_FULL_CLOSE_PREFIXES):
+            actual["cerrado"] = True
+            actual["restante"] = 0.0
+
+    if actual is not None:
+        trades.append(actual)
+    return trades
+
+
+def _bloque_metricas(pnls: list) -> dict:
+    """Calcula el bloque de métricas sobre una lista de PnL ya agrupada."""
+    ganancias = [p for p in pnls if p > 0]
+    perdidas = [p for p in pnls if p < 0]
+    n = len(ganancias) + len(perdidas)
+    bruto_ganado = float(sum(ganancias))
+    bruto_perdido = float(abs(sum(perdidas)))
+    media_gana = (bruto_ganado / len(ganancias)) if ganancias else 0.0
+    media_pierde = (-bruto_perdido / len(perdidas)) if perdidas else 0.0
+    payoff = (media_gana / abs(media_pierde)) if media_pierde else 0.0
+    return {
+        "closed": n,
+        "wins": len(ganancias),
+        "losses": len(perdidas),
+        "win_rate_pct": round(len(ganancias) / n * 100, 2) if n else 0.0,
+        "gross_profit_usdt": round(bruto_ganado, 2),
+        "gross_loss_usdt": round(bruto_perdido, 2),
+        "profit_factor": (round(bruto_ganado / bruto_perdido, 3) if bruto_perdido > 0
+                          else (999.0 if bruto_ganado > 0 else 0.0)),
+        "net_pnl_usdt": round(bruto_ganado - bruto_perdido, 2),
+        "avg_win_usdt": round(media_gana, 2),
+        "avg_loss_usdt": round(media_pierde, 2),
+        "payoff_ratio": round(payoff, 3),
+        # Con este payoff, el % de aciertos por debajo del cual se pierde dinero.
+        "breakeven_win_rate_pct": round(100.0 / (1.0 + payoff), 2) if payoff > 0 else 0.0,
+    }
+
+
 def _compute_trade_metrics(cfg: dict = CONFIG) -> dict:
+    """Métricas del journal a DOS niveles.
+
+    Las cifras de cabecera son por TRADE, no por evento. Los TP salen en
+    parciales (~30/21/12% de la posición) y los stops se llevan el 100% de
+    golpe, así que promediar eventos compara media posición contra posición
+    entera y produce un ratio ganancia/pérdida falso. El detalle por salida
+    individual sigue disponible bajo la clave `exits`.
+    """
+    vacio = _bloque_metricas([])
     path = cfg.get("trade_journal_file", TRADE_JOURNAL_FILE)
     if not os.path.exists(path):
         return {
-            "total_events": 0,
+            **vacio,
             "closed_trades": 0,
-            "wins": 0,
-            "losses": 0,
-            "win_rate_pct": 0.0,
-            "gross_profit_usdt": 0.0,
-            "gross_loss_usdt": 0.0,
-            "profit_factor": 0.0,
-            "net_pnl_usdt": 0.0,
-            "avg_win_usdt": 0.0,
-            "avg_loss_usdt": 0.0,
+            "total_events": 0,
+            "open_unclosed": 0,
+            "exits": dict(vacio),
+            "last_updated_utc": datetime.utcnow().isoformat(),
         }
 
     df = pd.read_csv(path)
-    total_events = len(df)
-    closed = df[df["event"].isin(["tp1", "tp2", "tp3", "hard_stop", "trailing_stop", "hedge_partial", "hedge_close", "hedge_force_close"])]
-    pnl = pd.to_numeric(closed.get("pnl_usdt"), errors="coerce").fillna(0.0)
-    wins = pnl[pnl > 0]
-    losses = pnl[pnl < 0]
-    gross_profit = float(wins.sum()) if not wins.empty else 0.0
-    gross_loss = float(abs(losses.sum())) if not losses.empty else 0.0
-    profit_factor = round(gross_profit / gross_loss, 3) if gross_loss > 0 else (999.0 if gross_profit > 0 else 0.0)
-    closed_count = int((pnl != 0).sum())
-    win_count = int((pnl > 0).sum())
-    loss_count = int((pnl < 0).sum())
+    trades = _group_journal_into_trades(df)
+    cerrados = [t for t in trades if t["cerrado"]]
+
+    por_trade = _bloque_metricas([t["pnl_usdt"] for t in cerrados])
+    por_salida = _bloque_metricas(
+        [p for p in pd.to_numeric(df.get("pnl_usdt"), errors="coerce").fillna(0.0).tolist() if p != 0.0]
+    )
+
     return {
-        "total_events": int(total_events),
-        "closed_trades": closed_count,
-        "wins": win_count,
-        "losses": loss_count,
-        "win_rate_pct": round((win_count / closed_count) * 100, 2) if closed_count else 0.0,
-        "gross_profit_usdt": round(gross_profit, 2),
-        "gross_loss_usdt": round(gross_loss, 2),
-        "profit_factor": profit_factor,
-        "net_pnl_usdt": round(float(pnl.sum()), 2),
-        "avg_win_usdt": round(float(wins.mean()), 2) if not wins.empty else 0.0,
-        "avg_loss_usdt": round(float(losses.mean()), 2) if not losses.empty else 0.0,
+        **por_trade,
+        "closed_trades": por_trade["closed"],   # nombre heredado, mismo valor
+        "total_events": int(len(df)),
+        # Trades abiertos que nunca escribieron un cierre: ni ganadores ni
+        # perdedores, un agujero en el histórico que hay que ver, no ocultar.
+        "open_unclosed": len(trades) - len(cerrados),
+        "exits": por_salida,
         "last_updated_utc": datetime.utcnow().isoformat(),
     }
 
@@ -710,12 +840,69 @@ def get_exchange(cfg: dict) -> ccxt.Exchange:
 
 def get_ohlcv(exchange: ccxt.Exchange, symbol: str, timeframe: str,
               limit: int = 300) -> pd.DataFrame:
-    ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+    # Único punto por el que entran velas al bot: es donde se mide si hay datos.
+    try:
+        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+    except Exception as e:
+        _SALUD["fallos_seguidos"] += 1
+        _SALUD["ultimo_error"] = f"{type(e).__name__}: {e}"[:300]
+        raise
+    _SALUD["ultimo_ok_utc"] = datetime.utcnow().isoformat()
+    _SALUD["fallos_seguidos"] = 0
+    _SALUD["fetches_ok"] += 1
     df = pd.DataFrame(ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
     df.set_index("timestamp", inplace=True)
     df = _add_all_indicators(df)
     return df
+
+
+def salud_datos(cfg: dict = CONFIG) -> dict:
+    """Cuánto hace que no entra una vela, y si eso ya es ceguera."""
+    umbral = float(cfg.get("blind_after_seconds", 900))
+    ultimo = _SALUD["ultimo_ok_utc"]
+    edad = None
+    if ultimo:
+        edad = (datetime.utcnow() - datetime.fromisoformat(ultimo)).total_seconds()
+
+    if edad is None:
+        estado = "sin_datos" if _SALUD["fallos_seguidos"] else "arrancando"
+    elif edad > umbral * 3:
+        estado = "ciego"
+    elif edad > umbral:
+        estado = "viejo"
+    else:
+        estado = "ok"
+
+    return {
+        "estado":          estado,
+        "ciego":           estado in ("ciego", "sin_datos"),
+        "edad_segundos":   round(edad, 1) if edad is not None else None,
+        "ultimo_ok_utc":   ultimo,
+        "fallos_seguidos": _SALUD["fallos_seguidos"],
+        "fetches_ok":      _SALUD["fetches_ok"],
+        "ultimo_error":    _SALUD["ultimo_error"],
+    }
+
+
+def _reconstruir_exchange(exchange: ccxt.Exchange, cfg: dict) -> ccxt.Exchange:
+    """Rehace el cliente ccxt después de varios fallos seguidos.
+
+    El cliente se construía una sola vez, fuera del bucle. Cuando la salida de
+    la VPN cambiaba, el pool de conexiones keep-alive quedaba muerto y ccxt lo
+    seguía reutilizando para siempre: el bot no se recuperaba solo ni cuando la
+    red volvía. Así se perdieron 20 días de operativa sin que nada avisara.
+    """
+    try:
+        cerrar = getattr(exchange, "close", None)
+        if callable(cerrar):
+            cerrar()
+    except Exception:
+        pass
+    logger.warning(
+        f"♻️  Reconstruyendo cliente de exchange tras {_SALUD['fallos_seguidos']} fallos seguidos"
+    )
+    return get_exchange(cfg)
 
 
 def get_ohlcv_history(exchange: ccxt.Exchange, symbol: str, timeframe: str,
@@ -3569,6 +3756,8 @@ def run_bot(cfg: dict = CONFIG):
     mode_label = "PAPER TRADING" if paper else "REAL"
     net_label  = "TESTNET" if cfg.get("testnet") else "MAINNET"
     symbols    = cfg.get("symbols", [cfg["symbol"]])
+    # Se relee dentro del bucle (abajo) para que el panel pueda cambiarlo en
+    # caliente; aquí solo se deja el valor inicial para el log de arranque.
     max_pos    = cfg.get("max_concurrent_positions", 2)
 
     logger.info("=" * 60)
@@ -3595,6 +3784,15 @@ def run_bot(cfg: dict = CONFIG):
         _PAPER_MANAGERS.clear()
         _PAPER_MANAGERS.update(managers)
 
+    # Panel web. Mismo patrón que el listener de Telegram: un hilo daemon en
+    # ESTE proceso, porque el estado que maneja (pausa, tracker diario, los
+    # managers) vive en esta memoria y desde fuera no se alcanza.
+    try:
+        import panel_web
+        panel_web.arrancar(sys.modules[__name__], cfg, managers)
+    except Exception as e:
+        logger.warning(f"Panel web no arrancó: {e}")
+
     send_telegram(
         f"🤖 <b>Bot Jorge iniciado — {mode_label} | {net_label}</b>\n"
         f"Pares: {', '.join(symbols)}\n"
@@ -3606,6 +3804,16 @@ def run_bot(cfg: dict = CONFIG):
 
     while True:
         try:
+            # Varios ciclos seguidos sin que entre una sola vela significan que
+            # el cliente está envenenado — normalmente porque la VPN cambió de
+            # salida y su pool de conexiones quedó muerto. Rehacerlo es lo único
+            # que lo devuelve a la vida; antes esto no ocurría nunca.
+            if _SALUD["fallos_seguidos"] >= int(cfg.get("rebuild_client_after_failures", 3)):
+                exchange = _reconstruir_exchange(exchange, cfg)
+
+            # Releído cada ciclo: el panel lo cambia en caliente.
+            max_pos = int(cfg.get("max_concurrent_positions", 2))
+
             # ─── Actualizar equity total y tracker diario
             # Equity = balance líquido + margen comprometido + unrealized PnL, igual que un
             # exchange real. Usar get_balance() aquí (que en paper solo es líquido) hacía que
@@ -3704,6 +3912,27 @@ def run_bot(cfg: dict = CONFIG):
                         f"({'PREM' if sig['smc']['in_premium_mid'] else 'DISC' if sig['smc']['in_discount_mid'] else '—'}) | "
                         f"KZ: {kz_name}"
                     )
+
+                    # Instantánea del ciclo para el panel web. Se publica aquí y
+                    # no se recalcula fuera: lo que ve el panel es exactamente lo
+                    # que el bot usó para decidir.
+                    _ULTIMO_ANALISIS[sym] = {
+                        "utc":          datetime.utcnow().isoformat(),
+                        "symbol":       sym,
+                        "precio":       float(price),
+                        "score_long":   int(sig.get("score_adjusted", sig["score"])),
+                        "score_short":  int(sig.get("score_short_adjusted", 0)),
+                        "tipo_long":    sig.get("entry_type"),
+                        "tipo_short":   sig.get("short_entry_type", "none"),
+                        "adx":          float(sig["adx"]["value"]),
+                        "adx_bull":     bool(sig["adx"].get("bullish", False)),
+                        "htf_range_pos": float(sig["smc"]["htf_range_pos"]),
+                        "htf_label":    ("PREM" if sig["smc"]["in_premium_mid"]
+                                         else "DISC" if sig["smc"]["in_discount_mid"] else "MID"),
+                        "killzone":     kz_name,
+                        "regimen":      sig.get("regime"),
+                        "score_max":    13,
+                    }
 
                     pos = manager.get_positions()
                     standalone_short_active = getattr(manager, "active_standalone_short", None)
@@ -3921,12 +4150,24 @@ def run_bot(cfg: dict = CONFIG):
                     continue
 
             # ─── Resumen global del loop
+            # El estado se decide MIRANDO LOS DATOS primero: un bot que no
+            # recibe velas no está activo por mucho que el proceso siga vivo.
+            salud = salud_datos(cfg)
+            if salud["ciego"]:
+                estado_txt = f"🔴 SIN DATOS ({salud['fallos_seguidos']} fallos seguidos)"
+            elif salud["estado"] == "viejo":
+                estado_txt = f"🟠 DATOS VIEJOS ({salud['edad_segundos']:.0f}s)"
+            elif _BOT_PAUSED[0] or _DAILY_TRACKER["paused"]:
+                estado_txt = "⏸️ PAUSADO"
+            else:
+                estado_txt = "✅ ACTIVO"
+
             pnl_sign = "🟢" if daily_pnl >= 0 else "🔴"
             logger.info(
                 f"{pnl_sign} PnL hoy: {daily_pnl:+.2f} USDT | "
                 f"Posiciones: {active_count}/{max_pos} | "
                 f"Sesión: {'✅' if session_ok else '🌙'} | "
-                f"Estado: {'⏸️ PAUSADO' if (_BOT_PAUSED[0] or _DAILY_TRACKER['paused']) else '✅ ACTIVO'}"
+                f"Estado: {estado_txt}"
             )
             _save_trade_metrics_snapshot(cfg)
 

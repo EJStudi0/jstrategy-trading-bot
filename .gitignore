@@ -47,3 +47,14 @@ jorge_backtest_metrics.json
 jorge_backtest_result.json
 jorge_backtest_trades.csv
 jorge_backtest_journal.csv
+
+# ── Añadido 2026-11-10 ───────────────────────────────────────────────────────
+# Copias de .env con sufijo (llevan los mismos secretos que .env)
+.env.*
+!.env.example
+# Registros rotados y estado de logrotate
+*.log.*
+.logrotate.state
+# Datos históricos descargados y resultados de investigación (se regeneran)
+datos_cache/
+investigacion/salidas/

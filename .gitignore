@@ -65,3 +65,5 @@ diario_operaciones.csv
 patrimonio_historico.csv
 .estado_*.tmp
 .tmp_*.json
+# La configuración real de logrotate lleva rutas absolutas de esta máquina (plantilla en despliegue/)
+/logrotate.conf

@@ -476,3 +476,167 @@ def a_ccxt(simbolo: str) -> str:
     """'BTCUSDT' -> 'BTC/USDT:USDT'."""
     base = simbolo[:-4] if simbolo.endswith("USDT") else simbolo
     return f"{base}/USDT:USDT"
+
+
+# ─── Huellas: posicionamiento y flujo (solo investigación) ───────────────────
+
+COLUMNAS_METRICAS = ["t", "simbolo", "oi", "oi_valor", "top_cuentas", "top_posiciones",
+                     "global_cuentas", "taker"]
+
+
+def descargar_metricas(simbolo: str, desde: str = "2021-12-01", hasta: Optional[str] = None,
+                       hilos: int = 8, refrescar: bool = False) -> dict:
+    """Métricas del perpetuo agregadas a 1 h: interés abierto y ratios largo/corto.
+
+    Binance publica un fichero por día con filas cada 5 minutos:
+      oi / oi_valor     interés abierto (en moneda y en USDT)
+      top_cuentas       largo/corto de los traders grandes, contando cuentas
+      top_posiciones    largo/corto de los traders grandes, contando tamaño
+      global_cuentas    largo/corto de TODAS las cuentas (la multitud)
+      taker             volumen comprado a mercado / vendido a mercado
+    De cada hora se guarda la última foto (y la media del ratio taker). `t` es la
+    apertura de la hora: sus valores se conocen al CERRAR esa hora.
+    """
+    ruta = _ruta_cache(simbolo, "metricas_1h")
+    if os.path.exists(ruta) and not refrescar:
+        z = np.load(ruta)
+        return {k: z[k] for k in z.files}
+    ahora = datetime.now(timezone.utc)
+    fin = pd.Timestamp(hasta) if hasta else pd.Timestamp((ahora - timedelta(days=1)).date())
+    dias = pd.date_range(pd.Timestamp(desde), fin, freq="D")
+    sesion = requests.Session()
+
+    def uno(d) -> Optional[pd.DataFrame]:
+        f = d.strftime("%Y-%m-%d")
+        cont = _bajar(sesion, f"{BASE_VISION}/daily/metrics/{simbolo}/{simbolo}-metrics-{f}.zip")
+        if cont is None:
+            return None
+        try:
+            return _leer_zip_csv(cont, COLUMNAS_METRICAS)
+        except Exception:
+            return None
+
+    with ThreadPoolExecutor(max_workers=hilos) as ex:
+        partes = [p for p in ex.map(uno, dias) if p is not None and len(p)]
+    if not partes:
+        raise RuntimeError(f"Sin métricas para {simbolo}")
+    df = pd.concat(partes, ignore_index=True)
+    # Ojo: pasar la fecha a entero depende de la resolución interna de pandas (segundos o
+    # nanosegundos según versión); restar la época y dividir por un milisegundo no depende de nada.
+    momento = pd.to_datetime(df["t"], utc=True, errors="coerce")
+    df["t"] = (momento - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta(milliseconds=1)
+    for c in COLUMNAS_METRICAS[2:]:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    df = df.dropna(subset=["t"]).drop_duplicates(subset="t").sort_values("t")
+    df["hora"] = df["t"] // MS["1h"] * MS["1h"]
+    g = df.groupby("hora")
+    out = {"t": g["t"].first().index.to_numpy(np.int64)}
+    for c in ("oi", "oi_valor", "top_cuentas", "top_posiciones", "global_cuentas"):
+        out[c] = g[c].last().to_numpy(np.float64)
+    out["taker"] = g["taker"].mean().to_numpy(np.float64)
+    np.savez_compressed(ruta, **out)
+    return out
+
+
+def descargar_flujo(simbolo: str, desde: str = "2020-01", hasta: Optional[str] = None,
+                    hilos: int = 6, refrescar: bool = False) -> dict:
+    """Volumen por hora partido en quién tomó la iniciativa: (t, volumen, comprado a mercado).
+
+    Sale de las mismas velas de 15 minutos; la columna de compras a mercado es la
+    que `descargar_velas` no guarda.
+    """
+    ruta = _ruta_cache(simbolo, "flujo_1h")
+    if os.path.exists(ruta) and not refrescar:
+        z = np.load(ruta)
+        return {k: z[k] for k in z.files}
+    ahora = datetime.now(timezone.utc)
+    if hasta is None:
+        hasta = (ahora.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+    sesion = requests.Session()
+
+    def uno(mes: str) -> Optional[pd.DataFrame]:
+        cont = _bajar(sesion, f"{BASE_VISION}/monthly/klines/{simbolo}/15m/{simbolo}-15m-{mes}.zip")
+        return None if cont is None else _leer_zip_csv(cont, COLUMNAS_KLINE)[["t", "v", "vq", "v_compra"]]
+
+    with ThreadPoolExecutor(max_workers=hilos) as ex:
+        partes = [p for p in ex.map(uno, _meses(desde, hasta)) if p is not None]
+    df = pd.concat(partes, ignore_index=True)
+    for c in ("t", "v", "vq", "v_compra"):
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    df = df.dropna().drop_duplicates(subset="t").sort_values("t")
+    df["t"] = df["t"].astype("int64")
+    df.loc[df["t"] > 10**14, "t"] //= 1000
+    df["hora"] = df["t"] // MS["1h"] * MS["1h"]
+    g = df.groupby("hora")[["v", "vq", "v_compra"]].sum()
+    out = {"t": g.index.to_numpy(np.int64), "v": g["v"].to_numpy(), "vq": g["vq"].to_numpy(),
+           "v_compra": g["v_compra"].to_numpy()}
+    np.savez_compressed(ruta, **out)
+    return out
+
+
+def descargar_contado_binance(simbolo: str, desde: str = "2020-01", hasta: Optional[str] = None,
+                              hilos: int = 6, refrescar: bool = False) -> Velas:
+    """Velas de 1 h del CONTADO de Binance (los volcados; la API no hace falta)."""
+    ruta = _ruta_cache(simbolo, "contado_1h")
+    if os.path.exists(ruta) and not refrescar:
+        z = np.load(ruta)
+        return Velas(simbolo, "1h", z["t"], z["o"], z["h"], z["l"], z["c"], z["v"])
+    ahora = datetime.now(timezone.utc)
+    if hasta is None:
+        hasta = (ahora.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+    sesion = requests.Session()
+    base = "https://data.binance.vision/data/spot/monthly/klines"
+
+    def uno(mes: str) -> Optional[pd.DataFrame]:
+        cont = _bajar(sesion, f"{base}/{simbolo}/1h/{simbolo}-1h-{mes}.zip")
+        return None if cont is None else _leer_zip_csv(cont, COLUMNAS_KLINE)
+
+    with ThreadPoolExecutor(max_workers=hilos) as ex:
+        partes = [p for p in ex.map(uno, _meses(desde, hasta)) if p is not None]
+    df = pd.concat(partes, ignore_index=True)
+    for col in ("t", "o", "h", "l", "c", "v"):
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=["t", "o", "h", "l", "c", "v"])
+    df["t"] = df["t"].astype("int64")
+    df.loc[df["t"] > 10**14, "t"] //= 1000          # el contado pasó a microsegundos en 2025
+    df = df.drop_duplicates(subset="t").sort_values("t")
+    v = Velas(simbolo, "1h", df["t"].to_numpy(np.int64),
+              *(df[c].to_numpy(np.float64) for c in ("o", "h", "l", "c", "v")))
+    np.savez_compressed(ruta, t=v.t, o=v.o, h=v.h, l=v.l, c=v.c, v=v.v)
+    return v
+
+
+def descargar_coinbase(producto: str = "BTC-USD", desde: str = "2020-01-01",
+                       refrescar: bool = False) -> Velas:
+    """Velas de 1 h de Coinbase (dólares de verdad, clientela de EE. UU.). API pública."""
+    ruta = _ruta_cache(producto.replace("-", ""), "coinbase_1h")
+    if os.path.exists(ruta) and not refrescar:
+        z = np.load(ruta)
+        return Velas(producto, "1h", z["t"], z["o"], z["h"], z["l"], z["c"], z["v"])
+    sesion = requests.Session()
+    sesion.headers["User-Agent"] = "python-requests"
+    url = f"https://api.exchange.coinbase.com/products/{producto}/candles"
+    t = int(pd.Timestamp(desde, tz="UTC").timestamp())
+    fin = int(time.time()) // 3600 * 3600
+    filas: dict = {}
+    while t < fin:
+        hasta = min(t + 299 * 3600, fin)
+        for intento in range(5):
+            r = sesion.get(url, params={"granularity": 3600,
+                                        "start": datetime.fromtimestamp(t, timezone.utc).isoformat(),
+                                        "end": datetime.fromtimestamp(hasta, timezone.utc).isoformat()},
+                           timeout=30)
+            if r.status_code == 200:
+                break
+            time.sleep(1.0 + intento)
+        r.raise_for_status()
+        for f in r.json():                      # [tiempo, mínimo, máximo, apertura, cierre, volumen]
+            filas[int(f[0])] = f
+        t = hasta + 3600
+        time.sleep(0.12)
+    a = np.asarray([filas[k] for k in sorted(filas)], dtype=np.float64)
+    v = Velas(producto, "1h", (a[:, 0] * 1000).astype(np.int64), a[:, 3], a[:, 2], a[:, 1], a[:, 4], a[:, 5])
+    v = Velas(producto, "1h", *(getattr(v, k)[v.t + MS["1h"] <= int(time.time() * 1000)]
+                                for k in ("t", "o", "h", "l", "c", "v")))
+    np.savez_compressed(ruta, t=v.t, o=v.o, h=v.h, l=v.l, c=v.c, v=v.v)
+    return v

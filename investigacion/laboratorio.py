@@ -269,7 +269,7 @@ def doble_pata(g: Cuadricula, W_contado: np.ndarray, W_perp: np.ndarray):
 def simular_cubierta(g: Cuadricula, base: np.ndarray, neto: np.ndarray,
                      banda_base: float, banda_cobertura: float,
                      coste_contado: float = COSTE_CONTADO, coste_perp: float = COSTE_POR_LADO,
-                     con_financiacion: bool = True) -> Resultado:
+                     con_financiacion: bool = True, extra_perp: Optional[np.ndarray] = None) -> Resultado:
     """Simula «base en contado + cobertura en perpetuo» con las MISMAS reglas que el bot.
 
     La regla que importa es la de `bot.cartera.ordenes`: la cobertura se pide como
@@ -301,6 +301,9 @@ def simular_cubierta(g: Cuadricula, base: np.ndarray, neto: np.ndarray,
         with np.errstate(divide="ignore", invalid="ignore"):
             expuesto = np.where(b > 0, n / np.where(b > 0, b, 1.0), 0.0)
         obj_p = np.where(b > 0, -(1.0 - expuesto) * pc, n)
+        if extra_perp is not None:
+            # Posiciones en perpetuo que se suman a la cobertura (la manga de tendencia relativa).
+            obj_p = obj_p + np.where(cotiza[k], np.nan_to_num(extra_perp[k]), 0.0)
         op_p = np.where(hay_que_mover(pp, obj_p, banda_cobertura), obj_p - pp, 0.0)
         pp = pp + op_p
         c = coste_contado * np.abs(op_c).sum() + coste_perp * np.abs(op_p).sum()

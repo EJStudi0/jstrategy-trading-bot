@@ -107,6 +107,26 @@ Repetir la investigación (baja ~40 MB la primera vez):
 `investigacion/comun.py` fija la frontera (`FIN_DISEÑO = 2024-01-01`). Si algo se ajusta mirando lo
 de después, deja de servir como prueba.
 
+## Ideas probadas y descartadas
+
+Cada idea se mide primero en el diseño (2020-2023). Solo pasa a la prueba (2024 →) si en el diseño
+se distingue del azar, con el signo esperado y sin depender de un solo año. Lo que no pasa no entra
+en el bot, por bien que suene.
+
+| Idea | Qué salió | Dónde |
+|---|---|---|
+| Cubrir al 150-200 % (cobertura de Jorge) | Peor en diseño y en prueba: menos ganancia y más caída | `validacion.py` |
+| Cortos sueltos siguiendo la tendencia bajista | No aportan: lo que ganan en 2022 lo devuelven el resto | diseño inicial |
+| Todo en perpetuos, sin base en contado | 5 puntos menos al año: los largos pagan financiación | `validacion.py` |
+| Comprar el retroceso en tendencia alcista | Tras una caída en tendencia alcista se gana MENOS que de media; lo que se premia es la fuerza | diseño |
+| Tendencia relativa (cada alt medida en BTC) | Sharpe 1,33 en diseño, **−0,32 en la prueba**. Descartada por la prueba | `relativa.py` |
+| Fuerza relativa entre monedas | Vive de 2020-21, con monedas elegidas a toro pasado | diseño inicial |
+| Vender en vez de cubrir si la financiación es negativa | Lo que ahorra en financiación se lo comen las comisiones | diseño |
+| Acelerar tras un tirón en tendencia plena | Igual que apalancar un poco siempre, con más comisiones | diseño |
+| Prima de Coinbase (demanda de EE. UU.) | No predice a 1, 3 ni 7 días (\|t\| < 1,3) | `huellas.py` |
+| Emisión de monedas estables | Signo esperado, pero t ≈ 1,4 y cambia de signo según el año | diseño |
+| Señal del bot antiguo (10 argumentos) | Indistinguible del azar en 6,7 años | `estudio_senal_antigua.py` |
+
 ## Por qué se cambió el sistema anterior
 
 - **Su backtest veía el futuro.** Filtraba las velas de 4 h y diarias por hora de apertura, así que

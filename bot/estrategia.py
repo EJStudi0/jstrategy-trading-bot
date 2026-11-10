@@ -126,10 +126,15 @@ class Objetivos:
         return self.neto - self.base
 
 
-def calcular(H: np.ndarray, L: np.ndarray, C: np.ndarray, p: Parametros) -> Objetivos:
+def calcular(H: np.ndarray, L: np.ndarray, C: np.ndarray, p: Parametros,
+             ajuste_nota: Optional[np.ndarray] = None) -> Objetivos:
     """Objetivos para todas las velas. Matrices tiempo × moneda, NaN si aún no cotiza.
 
     Las columnas van en el orden de `p.simbolos`.
+
+    `ajuste_nota` (tiempo × moneda) se suma a la nota de tendencia antes de decidir cuánto
+    exponer; el filtro de mercado sigue mirando la tendencia sin ajustar. Es el enganche para
+    información que no sale del precio (posicionamiento). Sin él, la estrategia es solo precio.
     """
     T, N = C.shape
     vd = VELAS_DIA[p.intervalo]
@@ -150,6 +155,11 @@ def calcular(H: np.ndarray, L: np.ndarray, C: np.ndarray, p: Parametros) -> Obje
     if p.filtro_ancla and N > 1:
         ancla_ok = S[:, [0]] > 0
         F[:, 1:] = np.where(ancla_ok, S[:, 1:], np.minimum(S[:, 1:], 0.0))
+
+    if ajuste_nota is not None:
+        F = np.clip(F + np.where(cotiza, np.nan_to_num(ajuste_nota, nan=0.0), 0.0), -1.0, 1.0)
+        if p.filtro_ancla and N > 1:        # el ajuste no puede saltarse el filtro de Bitcoin
+            F[:, 1:] = np.where(S[:, [0]] > 0, F[:, 1:], np.minimum(F[:, 1:], 0.0))
 
     vol = np.maximum(np.nan_to_num(V, nan=np.inf), p.vol_minima)
     base = np.where(cotiza, (p.vol_moneda / vol) / N, 0.0)
@@ -199,3 +209,4 @@ def hay_que_mover(actual: np.ndarray, objetivo: np.ndarray, banda_rel, banda_abs
     mover |= (objetivo == 0.0) & (actual != 0.0)
     mover |= (np.sign(objetivo) != np.sign(actual)) & (objetivo != 0.0)
     return mover
+

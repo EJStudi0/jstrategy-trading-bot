@@ -167,6 +167,16 @@ def test_el_estado_sobrevive_a_un_reinicio(bot, tmp_path):
     assert otro.cartera.patrimonio(bot.precios) == pytest.approx(pat)
 
 
+def test_el_panel_sabe_en_que_nivel_de_riesgo_esta(bot):
+    assert bot.instantanea()["nivel"] == "moderado"
+    assert set(bot.instantanea()["niveles"]) == set(config.NIVELES)
+    bot.cambiar_ajustes(config.NIVELES["constante"]["ajustes"])
+    assert bot.instantanea()["nivel"] == "constante"
+    assert bot.p.vol_cartera == pytest.approx(0.10)
+    bot.cambiar_ajustes({"vol_cartera": 0.33})
+    assert bot.instantanea()["nivel"] is None, "a medida: no coincide con ningún nivel medido"
+
+
 def test_ajustes_fuera_de_rango_se_rechazan(bot):
     for malo in ({"vol_cartera": 5}, {"tope_base": 0.99}, {"cobertura_max": 3}, {"modo": "perpetuos"},
                  {"vol_cartera": "mucho"}, {"apalancamiento": 3}, {"apalancamiento": 0.5}):

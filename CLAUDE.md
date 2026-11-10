@@ -10,7 +10,7 @@ Al dueño se le habla en español, corto, sin nombres de ficheros ni de funcione
 - `bot/` — el bot. `estrategia.py` (decide, función pura de velas cerradas), `cartera.py`
   (contabilidad simulada), `ejecutor.py` (bucle), `datos.py` (velas), `panel.py` + `panel_estatico/`.
 - `investigacion/` — simulador y estudios. `salidas/` y `datos_cache/` se regeneran y no van a git.
-- `tests/` — `.venv/bin/python -m pytest` (101, ~25 s).
+- `tests/` — `.venv/bin/python -m pytest` (~25 s).
 - `01_…` a `13_…`, `panel_web.py`, `panel_static/` — el sistema anterior. No se ejecuta. No se
   arregla ni se borra sin que el dueño lo pida.
 - Servicio: `jstrategy-bot.service` (systemd de usuario). Copia en `despliegue/`.

@@ -161,3 +161,20 @@ def test_apalancamiento_permite_pasar_de_la_base_y_por_defecto_no():
     np.testing.assert_allclose(con.neto[-1], 2.0 * con.base[-1])         # y el doble si se pide
     np.testing.assert_allclose(con.perp()[-1], con.base[-1])             # el exceso va en perpetuo, en largo
     np.testing.assert_allclose(con.base, sin.base)                       # la base no cambia
+
+
+def test_ajuste_de_nota_mueve_la_exposicion_pero_no_salta_el_filtro(mercado_sintetico):
+    """El enganche para información que no sale del precio: suma a la nota, dentro de sus límites."""
+    H, L, C = mercado_sintetico
+    p = replace(P, vol_cartera=9.0, escala_max=1.0)          # sin control de cartera, para aislar el efecto
+    normal = est.calcular(H, L, C, p)
+    arriba = est.calcular(H, L, C, p, ajuste_nota=np.full(C.shape, 2.0))
+    abajo = est.calcular(H, L, C, p, ajuste_nota=np.full(C.shape, -2.0))
+    np.testing.assert_allclose(abajo.neto, 0.0)                                  # todo cubierto
+    np.testing.assert_allclose(arriba.neto[:, 0], arriba.base[:, 0])             # el ancla, toda expuesta
+    ancla_mal = normal.puntuacion[:, 0] <= 0
+    assert np.all(arriba.neto[ancla_mal, 1:] == 0), "ni con el ajuste al máximo se compran alts contra Bitcoin"
+    assert np.all(arriba.neto >= normal.neto - 1e-12) and np.all(abajo.neto <= normal.neto + 1e-12)
+    np.testing.assert_allclose(est.calcular(H, L, C, p, ajuste_nota=np.zeros(C.shape)).neto, normal.neto)
+    np.testing.assert_allclose(arriba.puntuacion, normal.puntuacion)            # la nota de tendencia no se toca
+    np.testing.assert_allclose(arriba.base, normal.base)

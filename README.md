@@ -139,6 +139,33 @@ histórico anterior a 2024 o de datos gratuitos: flujos de los ETF y datos de la
 | Emisión de monedas estables | Signo esperado, pero t ≈ 1,4 y cambia de signo según el año | diseño |
 | Señal del bot antiguo (10 argumentos) | Indistinguible del azar en 6,7 años | `estudio_senal_antigua.py` |
 
+## Las reglas de Jorge, comprobadas una por una
+
+Las reglas que se pueden escribir sin ambigüedad, medidas sobre Bitcoin (`investigacion/reglas_jorge.py`).
+Las que predicen, solo con 2020-2023; las afirmaciones de hecho, con todo el histórico.
+
+| Regla | Lo que dicen los datos | Veredicto |
+|---|---|---|
+| EMA10 sobre EMA55 en 4 h y en diario como guía | Con la EMA10 arriba en diario, BTC rindió +205 % anualizado; por debajo, +15 % | **Se cumple.** Es el corazón del bot: dos de sus diez relojes son estas EMAs |
+| Cobertura en vez de vender | En el diseño, mantener la base y cubrirla rindió algo más que vender y recomprar (cobra financiación y paga menos comisión) | **Se cumple**, cubriendo hasta el 100 % |
+| Cobertura al doble («nunca pierdes») | Al doble queda en corto y pierde cuando rebota: menos ganancia y más caída | No se cumple. Su propia regla avanzada (1:1 pasado el −10 %) sí |
+| Bitcoin manda sobre las alts | En el diseño, comprar alts solo con BTC en tendencia positiva redujo la peor caída del −26 % al −14 % | **Se cumple** (es el filtro del bot) |
+| «Soy 98 % largo» | Los cortos sueltos no aportan | **Se cumple** |
+| No entrar si el precio está >3 % sobre la EMA10 diaria | Lejos de la EMA10: +3,6 % a 7 días; cerca: +1,1 % | Al revés |
+| Comprar el retroceso a la EMA | Tras una caída en tendencia alcista se gana menos que de media | No se cumple |
+| Vela 7 tras el cruce | Velas 5-8: +0,32 % a 3 días; las demás: +0,30 % | Sin diferencia |
+| Cada máximo se retestea «por ley» | Vuelve al nivel el 86 % de las veces; esperar no rinde más y deja fuera el resto | A medias |
+| Volumen de parada, disparo del squeeze | Igual que entrar en un momento cualquiera | No se distinguen del azar |
+| Lunes alcista, ventana de Chicago | Lunes +0,38 % frente a +0,15 % (t = 1,3); la ventana, nada | No se distinguen del azar |
+| «Nunca cae un 20 % en un día» | BTC: 6 días (peor, −45 %). ETH: 15. SOL: 30 | Falso |
+| Base escrita: ×100, recompras dobladas cada −1,6 %, sin stop | En 6,9 años de BTC: 1 730 operaciones ganadoras y la cuenta de futuros liquidada 24 veces (con su filtro de EMAs) | Gana casi siempre y cada pocos meses lo pierde todo |
+
+No se pueden comprobar así, porque dependen de mirar el gráfico: order blocks, zonas de liquidez, perfil
+de volumen, «vender la noticia» y la lectura de techos y suelos. Ahí es donde la mano de Jorge puede
+valer algo que ninguna regla escrita recoge. Su material original (capturas, textos y Excel) no trae un
+registro de sus operaciones con fechas y resultados, así que no hay nada de lo que un algoritmo pueda
+aprender directamente: lo que hay son reglas, y son las de la tabla.
+
 ## Por qué se cambió el sistema anterior
 
 - **Su backtest veía el futuro.** Filtraba las velas de 4 h y diarias por hora de apertura, así que

@@ -1,0 +1,25 @@
+# Copia de referencia de ~/.config/systemd/user/jstrategy-bot.service (%h = carpeta personal)
+# Instalar:  cp despliegue/jstrategy-bot.service ~/.config/systemd/user/ && systemctl --user daemon-reload
+[Unit]
+Description=Bot Jorge (simulación): tendencia + base cubierta
+After=network-online.target
+Wants=network-online.target
+# Si se cae 20 veces en una hora, se queda parado en vez de reintentar para siempre:
+# el bucle de octubre de 2026 reinició 18 000 veces y llenó 30 MB de registro.
+StartLimitIntervalSec=3600
+StartLimitBurst=20
+
+[Service]
+Type=simple
+WorkingDirectory=%h/proyectos/jstrategy
+EnvironmentFile=%h/proyectos/jstrategy/.env
+Environment=PYTHONUNBUFFERED=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
+ExecStart=%h/proyectos/jstrategy/.venv/bin/python -m bot
+Restart=on-failure
+RestartSec=30
+Nice=10
+StandardOutput=append:%h/proyectos/jstrategy/bot_stdout.log
+StandardError=append:%h/proyectos/jstrategy/bot_stdout.log
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Bot Jorge</title>
+<link rel="stylesheet" href="/panel.css">
+</head>
+<body>
+<main class="viz-root">
+
+  <section id="acceso" class="tarjeta acceso" hidden>
+    <h1>Bot Jorge</h1>
+    <p>Escribe el token del panel (está en <code>.env</code>, línea <code>JORGE_BOT_PANEL_TOKEN</code>).</p>
+    <form id="form-token">
+      <label for="campo-token">Token</label>
+      <input id="campo-token" type="password" autocomplete="current-password" required>
+      <button type="submit" class="boton principal">Entrar</button>
+    </form>
+    <p id="acceso-error" class="error" role="alert"></p>
+  </section>
+
+  <div id="panel" hidden>
+    <header class="cabecera">
+      <h1>Bot Jorge</h1>
+      <span class="chip">Simulación</span>
+      <span id="salud" class="salud" role="status"></span>
+    </header>
+
+    <section class="heroe" aria-labelledby="t-patrimonio">
+      <p id="t-patrimonio" class="etiqueta">Patrimonio</p>
+      <p class="cifra"><span id="patrimonio">—</span> <span class="unidad">USDT</span></p>
+      <p id="ganancia" class="delta"></p>
+    </section>
+
+    <section class="fichas" aria-label="Resumen de la cartera">
+      <div class="ficha"><p class="etiqueta">Exposición al mercado</p><p class="valor" id="f-neto">—</p><p class="nota">de tu capital sube y baja con el precio</p></div>
+      <div class="ficha"><p class="etiqueta">Base en monedas</p><p class="valor" id="f-base">—</p><p class="nota">lo que el bot mantiene comprado</p></div>
+      <div class="ficha"><p class="etiqueta">Cubierto</p><p class="valor" id="f-cubierto">—</p><p class="nota">de la base está protegido con cortos</p></div>
+      <div class="ficha"><p class="etiqueta">USDT libres</p><p class="valor" id="f-usdt">—</p><p class="nota">garantía de las coberturas</p></div>
+      <div class="ficha"><p class="etiqueta">Financiación</p><p class="valor" id="f-financiacion">—</p><p class="nota">cobrada por las coberturas</p></div>
+      <div class="ficha"><p class="etiqueta">Comisiones</p><p class="valor" id="f-comisiones">—</p><p class="nota">pagadas hasta hoy</p></div>
+    </section>
+
+    <section class="tarjeta" aria-labelledby="t-grafica">
+      <h2 id="t-grafica">Patrimonio en USDT</h2>
+      <div id="grafica" class="grafica"></div>
+      <details>
+        <summary>Ver como tabla</summary>
+        <div class="tabla-desliza"><table id="tabla-patrimonio"><thead><tr><th>Día</th><th class="num">Patrimonio</th><th class="num">Exposición</th></tr></thead><tbody></tbody></table></div>
+      </details>
+    </section>
+
+    <section class="tarjeta" aria-labelledby="t-mando">
+      <h2 id="t-mando">Mando</h2>
+      <div class="mandos" role="group" aria-label="Modo de operación">
+        <button class="boton mando" data-mando="auto">Automático</button>
+        <button class="boton mando" data-mando="pausa">Pausa</button>
+        <button class="boton mando" data-mando="neutral">Cubrir todo</button>
+        <button class="boton mando peligro" data-mando="fuera">Salir a USDT</button>
+      </div>
+      <p id="mando-explica" class="nota"></p>
+      <p id="mando-error" class="error" role="alert"></p>
+    </section>
+
+    <section class="tarjeta" aria-labelledby="t-monedas">
+      <h2 id="t-monedas">Monedas</h2>
+      <div class="tabla-desliza">
+        <table id="tabla-monedas">
+          <thead><tr><th>Moneda</th><th>Tendencia</th><th class="num solo-ancho">Base</th><th class="num">Cubierto</th><th class="num">Expuesto</th><th class="num precio">Precio</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="nota">Tendencia: de −1 (bajista) a +1 (alcista), mezcla de diez relojes. El bot cubre la parte de la base que la tendencia no respalda.</p>
+      <p id="decision" class="nota"></p>
+    </section>
+
+    <section class="tarjeta" aria-labelledby="t-riesgo">
+      <h2 id="t-riesgo">Riesgo</h2>
+      <form id="form-ajustes" class="ajustes"></form>
+      <p id="ajustes-estado" class="nota" role="status"></p>
+    </section>
+
+    <section class="tarjeta" aria-labelledby="t-operaciones">
+      <h2 id="t-operaciones">Últimas operaciones</h2>
+      <div class="tabla-desliza">
+        <table id="tabla-operaciones">
+          <thead><tr><th>Cuándo (UTC)</th><th>Moneda</th><th>Qué</th><th class="num">Importe</th><th class="num solo-ancho">Precio</th><th class="solo-ancho">Motivo</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p id="sin-operaciones" class="nota" hidden>Todavía no hay operaciones.</p>
+    </section>
+
+    <section id="avisos" class="tarjeta" aria-labelledby="t-avisos" hidden>
+      <h2 id="t-avisos">Avisos</h2>
+      <ul id="lista-avisos"></ul>
+    </section>
+
+    <footer class="pie"><span id="actualizado"></span> · <button id="salir" class="enlace">Olvidar el token en este aparato</button></footer>
+  </div>
+
+</main>
+<script src="/panel.js"></script>
+</body>
+</html>

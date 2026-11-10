@@ -1,0 +1,168 @@
+/* Panel del bot. Los colores van por rol; el modo oscuro tiene sus propios pasos. */
+:root {
+  color-scheme: light;
+  --plano: #f9f9f7;
+  --superficie: #fcfcfb;
+  --tinta: #0b0b0b;
+  --tinta-2: #52514e;
+  --tinta-3: #898781;
+  --rejilla: #e1e0d9;
+  --eje: #c3c2b7;
+  --borde: rgba(11, 11, 11, 0.10);
+  --serie: #2a78d6;          /* la línea del patrimonio, y el lado alcista del medidor */
+  --serie-neg: #e34948;      /* lado bajista del medidor */
+  --neutro: #f0efec;         /* fondo del medidor */
+  --sube: #006300;
+  --baja: #b42323;
+  --bien: #0ca30c;
+  --aviso: #fab219;
+  --critico: #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --plano: #0d0d0d;
+    --superficie: #1a1a19;
+    --tinta: #f0efec;
+    --tinta-2: #c3c2b7;
+    --tinta-3: #898781;
+    --rejilla: #2c2c2a;
+    --eje: #383835;
+    --borde: rgba(255, 255, 255, 0.10);
+    --serie: #3987e5;
+    --serie-neg: #e66767;
+    --neutro: #383835;
+    --sube: #0ca30c;
+    --baja: #e66767;
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--plano);
+  color: var(--tinta);
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 960px; margin: 0 auto; padding: 16px 16px 48px; }
+h1 { font-size: 20px; margin: 0; font-weight: 650; }
+h2 { font-size: 16px; margin: 0 0 12px; font-weight: 650; }
+p { margin: 0; }
+code { font-size: 0.92em; }
+
+.cabecera { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+.chip {
+  font-size: 12px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 999px; border: 1px solid var(--borde); color: var(--tinta-2);
+}
+.salud { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-size: 14px; color: var(--tinta-2); }
+.salud::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--tinta-3); flex: none; }
+.salud[data-estado="ok"]::before { background: var(--bien); }
+.salud[data-estado="viejo"]::before, .salud[data-estado="arrancando"]::before { background: var(--aviso); }
+.salud[data-estado="ciego"]::before { background: var(--critico); }
+
+.heroe { margin-bottom: 20px; }
+.etiqueta { font-size: 13px; color: var(--tinta-2); }
+.cifra { font-size: clamp(38px, 9vw, 56px); font-weight: 650; line-height: 1.1; letter-spacing: -0.02em; }
+.unidad { font-size: 0.4em; font-weight: 500; color: var(--tinta-2); letter-spacing: 0; }
+.delta { font-size: 16px; font-weight: 600; margin-top: 4px; }
+.delta[data-signo="sube"] { color: var(--sube); }
+.delta[data-signo="baja"] { color: var(--baja); }
+
+.fichas { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+@media (min-width: 640px) { .fichas { grid-template-columns: repeat(3, 1fr); } }
+.ficha, .tarjeta {
+  background: var(--superficie); border: 1px solid var(--borde); border-radius: 12px;
+}
+.ficha { padding: 12px 14px; }
+.ficha .valor { font-size: 24px; font-weight: 650; line-height: 1.2; margin-top: 2px; }
+.nota { font-size: 13px; color: var(--tinta-2); }
+.ficha .nota { color: var(--tinta-3); font-size: 12px; margin-top: 2px; }
+.tarjeta { padding: 16px; margin-bottom: 16px; }
+.tarjeta > .nota { margin-top: 10px; }
+
+/* Gráfica */
+.grafica { position: relative; min-height: 220px; }
+.grafica svg { display: block; width: 100%; height: 220px; overflow: visible; outline-offset: 4px; }
+.grafica .rejilla { stroke: var(--rejilla); stroke-width: 1; }
+.grafica .base { stroke: var(--eje); stroke-width: 1; }
+.grafica .marca { fill: var(--tinta-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+.grafica .linea { fill: none; stroke: var(--serie); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.grafica .area { fill: var(--serie); opacity: 0.10; }
+.grafica .punto { fill: var(--serie); stroke: var(--superficie); stroke-width: 2; }
+.grafica .fin { fill: var(--tinta); font-size: 12px; font-weight: 650; }
+.grafica .mira { stroke: var(--eje); stroke-width: 1; }
+.grafica .vacia { color: var(--tinta-2); font-size: 14px; padding: 80px 0; text-align: center; }
+.globo {
+  position: absolute; top: 0; left: 0; pointer-events: none; white-space: nowrap;
+  background: var(--superficie); border: 1px solid var(--borde); border-radius: 8px;
+  padding: 6px 10px; font-size: 12px; color: var(--tinta-2);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+.globo strong { display: block; font-size: 15px; color: var(--tinta); font-weight: 650; }
+.globo .clave { display: inline-block; width: 12px; height: 2px; background: var(--serie); vertical-align: middle; margin-right: 6px; border-radius: 1px; }
+details { margin-top: 12px; }
+summary { cursor: pointer; font-size: 13px; color: var(--tinta-2); }
+
+/* Tablas */
+.tabla-desliza { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; font-weight: 600; font-size: 12px; color: var(--tinta-2); padding: 6px 10px 6px 0; white-space: nowrap; }
+td { padding: 9px 10px 9px 0; border-top: 1px solid var(--rejilla); white-space: nowrap; }
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; padding-right: 0; padding-left: 10px; }
+/* Una columna de texto pegada a una de cifras necesita aire: sin esto se leían juntas. */
+th.num + th:not(.num), td.num + td:not(.num) { padding-left: 20px; }
+td.moneda { font-weight: 650; }
+td.suave { color: var(--tinta-2); }
+
+/* Medidor de tendencia: de -1 a +1 desde el centro */
+.medidor { display: flex; align-items: center; gap: 8px; min-width: 150px; }
+.medidor .pista { position: relative; flex: 1; height: 8px; border-radius: 4px; background: var(--neutro); }
+.medidor .pista::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--eje); }
+.medidor .barra { position: absolute; top: 0; bottom: 0; background: var(--serie); }
+.medidor .barra.pos { left: 50%; border-radius: 0 4px 4px 0; }
+.medidor .barra.neg { right: 50%; border-radius: 4px 0 0 4px; background: var(--serie-neg); }
+.medidor .numero { width: 44px; text-align: right; font-variant-numeric: tabular-nums; color: var(--tinta); }
+
+/* Botones */
+.boton {
+  font: inherit; font-weight: 600; min-height: 52px; padding: 12px 16px; border-radius: 10px;
+  border: 1px solid var(--borde); background: var(--superficie); color: var(--tinta); cursor: pointer;
+}
+.boton:hover { border-color: var(--eje); }
+.boton:focus-visible, input:focus-visible, .enlace:focus-visible, summary:focus-visible { outline: 2px solid var(--serie); outline-offset: 2px; }
+.boton.principal { background: var(--tinta); color: var(--superficie); border-color: var(--tinta); }
+.boton[aria-pressed="true"] { background: var(--tinta); color: var(--superficie); border-color: var(--tinta); }
+.boton.peligro { color: var(--baja); }
+.boton.peligro[aria-pressed="true"] { background: var(--critico); border-color: var(--critico); color: #ffffff; }
+.boton:disabled { opacity: 0.55; cursor: default; }
+.mandos { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.enlace { font: inherit; font-size: 13px; background: none; border: 0; padding: 0; color: var(--tinta-2); text-decoration: underline; cursor: pointer; }
+.error { color: var(--baja); font-size: 14px; margin-top: 8px; min-height: 1em; }
+
+/* Ajustes */
+.ajustes { display: grid; gap: 16px; }
+.ajuste label { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; margin-bottom: 6px; }
+.ajuste output { font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ajuste input[type="range"] { width: 100%; accent-color: var(--serie); height: 28px; }
+
+/* Acceso */
+.acceso { max-width: 420px; margin: 12vh auto 0; }
+.acceso p { margin: 10px 0; font-size: 14px; color: var(--tinta-2); }
+.acceso label { display: block; font-size: 13px; color: var(--tinta-2); margin: 14px 0 6px; }
+.acceso input { width: 100%; font: inherit; padding: 12px; border-radius: 10px; border: 1px solid var(--eje); background: var(--plano); color: var(--tinta); }
+.acceso .boton { width: 100%; margin-top: 12px; }
+
+#lista-avisos { margin: 0; padding-left: 18px; font-size: 14px; color: var(--tinta-2); }
+.pie { font-size: 12px; color: var(--tinta-3); margin-top: 8px; }
+
+/* En el móvil caben cuatro columnas: se quedan las que deciden (tendencia, cubierto, expuesto). */
+@media (max-width: 560px) {
+  .precio, .solo-ancho { display: none; }
+  table { font-size: 13px; }
+  td, th { padding-right: 8px; }
+  .medidor { min-width: 0; gap: 6px; }
+  .medidor .pista { min-width: 48px; }
+  .medidor .numero { width: 40px; }
+}

@@ -239,6 +239,15 @@ def construir_app(ctx: ContextoPanel, token: str):
                     or request.query_params.get("token") or "")
         if not secrets.compare_digest(entrante, token):
             raise HTTPException(status_code=401, detail="token inválido")
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            # Este panel autentica con una cookie, y una cookie la manda el navegador
+            # aunque la petición la dispare otra página (CSRF). Dos cierres: un formulario
+            # ajeno no puede enviar JSON, y una página ajena no trae nuestro origen.
+            if "application/json" not in request.headers.get("content-type", ""):
+                raise HTTPException(status_code=415, detail="se espera JSON")
+            origen = request.headers.get("origin")
+            if origen and origen.split("://", 1)[-1] != request.headers.get("host", ""):
+                raise HTTPException(status_code=403, detail="origen no permitido")
 
     @app.get("/")
     def raiz(response: Response, token_query: str = Query("", alias="token")):
@@ -246,7 +255,7 @@ def construir_app(ctx: ContextoPanel, token: str):
         # llamadas del navegador no lo llevan colgando en cada petición.
         if secrets.compare_digest(token_query, token):
             respuesta = FileResponse(os.path.join(DIRECTORIO_ESTATICO, "index.html"))
-            respuesta.set_cookie("panel_token", token, httponly=True, samesite="lax", max_age=60 * 60 * 24 * 30)
+            respuesta.set_cookie("panel_token", token, httponly=True, samesite="strict", max_age=60 * 60 * 24 * 30)
             return respuesta
         return FileResponse(os.path.join(DIRECTORIO_ESTATICO, "index.html"))
 

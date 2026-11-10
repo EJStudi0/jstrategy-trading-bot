@@ -58,3 +58,10 @@ jorge_backtest_journal.csv
 # Datos históricos descargados y resultados de investigación (se regeneran)
 datos_cache/
 investigacion/salidas/
+# Estado del bot nuevo (simulación)
+estado_cartera.json
+estado_bot.json
+diario_operaciones.csv
+patrimonio_historico.csv
+.estado_*.tmp
+.tmp_*.json

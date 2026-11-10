@@ -199,3 +199,19 @@ def test_ajuste_de_nota_mueve_la_exposicion_pero_no_salta_el_filtro(mercado_sint
     np.testing.assert_allclose(est.calcular(H, L, C, p, ajuste_nota=np.zeros(C.shape)).neto, normal.neto)
     np.testing.assert_allclose(arriba.puntuacion, normal.puntuacion)            # la nota de tendencia no se toca
     np.testing.assert_allclose(arriba.base, normal.base)
+
+
+def test_los_relojes_que_ensena_el_panel_son_los_que_decide_el_bot(mercado_sintetico):
+    """El panel enseña el voto de cada reloj: su media tiene que ser la puntuación con la que se decide."""
+    H, L, C = mercado_sintetico
+    vd = est.VELAS_DIA[P.intervalo]
+    for k in (700, 1100, 1599):
+        for j in range(3):
+            r = est.relojes(H[:k + 1, j], L[:k + 1, j], C[:k + 1, j], vd, P)
+            assert len(r["cruces"]) == len(P.cruces) and len(r["rupturas"]) == len(P.rupturas)
+            assert set(r["cruces"]) <= {-1.0, 0.0, 1.0} and set(r["rupturas"]) <= {-1.0, 0.0, 1.0}
+            media = 0.5 * (np.mean(r["cruces"]) + np.mean(r["rupturas"]))
+            s = est.puntuacion(H[:k + 1, j], L[:k + 1, j], C[:k + 1, j], vd, P)[-1]
+            assert not r["rodaje"] and media == pytest.approx(s, abs=1e-12), (k, j)
+    corta = est.relojes(H[:100, 0], L[:100, 0], C[:100, 0], vd, P)
+    assert corta["rodaje"] and est.puntuacion(H[:100, 0], L[:100, 0], C[:100, 0], vd, P)[-1] == 0.0

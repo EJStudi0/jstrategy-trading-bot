@@ -10,7 +10,7 @@ from bot.estrategia import Parametros
 HAY_DATOS = os.path.exists(os.path.join(datos.DIR_CACHE, "BTCUSDT_15m.npz"))
 # Las cifras de `config.NIVELES` se midieron con los datos que había hasta este día. Fijarlo aquí
 # hace que la prueba no cambie por bajar datos nuevos: solo falla si cambia la estrategia.
-MEDIDO_HASTA = "2026-11-09"
+MEDIDO_HASTA = config.NIVELES_PERIODO["hasta"]
 
 
 def test_cada_nivel_se_puede_poner_desde_el_panel():
@@ -45,6 +45,12 @@ def test_las_cifras_de_los_niveles_son_las_medidas():
     from investigacion.validacion import simular
 
     for clave, nivel in config.NIVELES.items():
-        m = simular(replace(Parametros(), **nivel["ajustes"]), desde=comun.FIN_DISEÑO, hasta=MEDIDO_HASTA).metricas()
+        r = simular(replace(Parametros(), **nivel["ajustes"]), desde=comun.FIN_DISEÑO, hasta=MEDIDO_HASTA)
+        m = r.metricas()
         assert m["cagr_pct"] == pytest.approx(nivel["anual_pct"], abs=0.15), f"{clave}: ganancia anual"
         assert m["max_dd_pct"] == pytest.approx(nivel["caida_pct"], abs=0.15), f"{clave}: peor caída"
+        assert m["meses_positivos_pct"] == pytest.approx(nivel["meses_positivos_pct"], abs=1), f"{clave}: meses"
+        anios = r.por_anio()["rend_pct"]
+        assert {str(a) for a in anios.index} == set(nivel["por_anio"]), f"{clave}: años"
+        for anio, pct in nivel["por_anio"].items():
+            assert anios[int(anio)] == pytest.approx(pct, abs=0.15), f"{clave}: {anio}"

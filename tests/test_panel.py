@@ -23,7 +23,7 @@ def cliente(tmp_path, monkeypatch):
     return c
 
 
-RUTAS_GET = ["/api/estado", "/api/operaciones", "/api/patrimonio"]
+RUTAS_GET = ["/api/estado", "/api/operaciones", "/api/patrimonio", "/api/ganancias", "/api/mercado"]
 RUTAS_POST = ["/api/mando", "/api/ajustes"]
 
 
@@ -56,12 +56,39 @@ def test_un_formulario_de_otra_pagina_no_sirve(cliente):
 
 
 def test_la_pagina_no_lleva_datos_ni_el_token(cliente):
-    for ruta in ("/", "/panel.js", "/panel.css"):
-        r = cliente.get(ruta)
-        assert r.status_code == 200
+    for nombre, tipo in panel.ESTATICOS.items():
+        r = cliente.get("/" if nombre == "index.html" else "/" + nombre)
+        assert r.status_code == 200, nombre
+        assert r.headers["content-type"].split(";")[0] == tipo.split(";")[0], nombre
         assert TOKEN not in r.text
         assert "no-store" in r.headers.get("cache-control", "")
     assert "10000" not in cliente.get("/").text and "10.000" not in cliente.get("/").text
+
+
+@pytest.mark.parametrize("ruta", ["/panel.py", "/.env", "/estado_cartera.json", "/index.html",
+                                  "/..%2Fpanel.py", "/%2e%2e/config.py", "/api", "/favicon.ico"])
+def test_no_se_sirve_nada_fuera_de_la_lista(cliente, ruta):
+    assert cliente.get(ruta).status_code == 404
+
+
+def test_cabeceras_de_seguridad_en_todo(cliente):
+    """La página solo ejecuta sus ficheros y solo habla con este servidor, también en los errores."""
+    for r in (cliente.get("/"), cliente.get("/panel.js"), cliente.get("/api/estado"),
+              cliente.get("/api/estado", headers=AUT), cliente.get("/no-existe")):
+        csp = r.headers.get("content-security-policy", "")
+        assert "script-src 'self'" in csp and "connect-src 'self'" in csp and "frame-ancestors 'none'" in csp
+        assert "unsafe-inline" not in csp and "unsafe-eval" not in csp
+        assert r.headers.get("x-content-type-options") == "nosniff"
+        assert r.headers.get("referrer-policy") == "no-referrer"
+
+
+def test_el_html_no_lleva_codigo_ni_estilos_en_linea(cliente):
+    """Con la política estricta, un <script> o un style= en la página no funcionaría: que no los haya."""
+    import re
+    html = cliente.get("/").text
+    assert not re.search(r"<script(?![^>]*\bsrc=)[^>]*>", html), "script en línea"
+    assert "<style" not in html and " style=" not in html and "javascript:" not in html
+    assert not re.search(r"\son[a-z]+=", html), "manejador de evento en línea"
 
 
 def test_estado(cliente):
@@ -116,6 +143,22 @@ def test_operaciones_y_patrimonio(cliente):
     cliente.bot._foto()
     serie = cliente.get("/api/patrimonio", headers=AUT).json()
     assert len(serie) == 1 and serie[0]["patrimonio"] == pytest.approx(10_000, rel=0.01)
+
+
+def test_ganancias_en_la_zona_de_quien_mira(cliente):
+    cliente.bot._foto()
+    g = cliente.get("/api/ganancias?zona=America/Bogota", headers=AUT).json()
+    assert g["zona"] == "America/Bogota" and g["dias"] and g["resumen"]["total"]["inicio"] == 10_000
+    assert cliente.get("/api/ganancias?zona=../../etc/passwd", headers=AUT).json()["zona"] == "UTC"
+    assert cliente.get("/api/ganancias", headers=AUT).json()["zona"] == "UTC"
+
+
+def test_curva_por_tramo_y_mercado(cliente):
+    cliente.bot._foto()
+    assert len(cliente.get("/api/patrimonio?horas=24", headers=AUT).json()) == 1
+    assert cliente.get("/api/patrimonio?horas=-5", headers=AUT).status_code == 200
+    m = cliente.get("/api/mercado", headers=AUT).json()
+    assert [x["simbolo"] for x in m["monedas"]] == list(SIMBOLOS) and m["intervalo"] == "4h"
 
 
 def test_sin_token_configurado_el_panel_no_arranca(monkeypatch):

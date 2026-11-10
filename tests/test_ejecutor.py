@@ -1,5 +1,7 @@
 """El ejecutor con un mercado de mentira: decide, opera, obedece al mando y no pierde el estado."""
+import os
 import time
+from datetime import datetime, timezone
 
 import numpy as np
 import pytest
@@ -230,3 +232,93 @@ def test_solo_simulacion(monkeypatch):
     monkeypatch.setenv("JORGE_BOT_PAPER", "false")
     with pytest.raises(SystemExit):
         ejecutor.correr()
+
+
+def test_la_curva_lleva_una_foto_por_hora_con_los_acumulados(bot, monkeypatch):
+    avanzar(bot, 0)
+    bot.decidir()
+    reloj = [1_800_001_800.0]          # media hora después de una hora en punto
+    monkeypatch.setattr(ejecutor.time, "time", lambda: reloj[0])
+    bot._foto()
+    reloj[0] += 1200                     # misma hora: no repite
+    bot._foto()
+    reloj[0] += 1800                     # hora siguiente
+    bot._foto()
+    import csv
+    with open(bot.ruta_patrimonio, newline="", encoding="utf-8") as fh:
+        filas = list(csv.DictReader(fh))
+    assert len(filas) == 2
+    assert list(filas[0]) == ejecutor.COLUMNAS_PATRIMONIO
+    assert bot.cartera.comisiones > 0
+    assert float(filas[0]["comisiones"]) == pytest.approx(bot.cartera.comisiones, abs=1e-4)
+    assert float(filas[0]["financiacion"]) == pytest.approx(bot.cartera.financiacion, abs=1e-4)
+    # Tras un reinicio en la misma hora tampoco se repite.
+    otro = ejecutor.Bot(feed=FeedFalso(), carpeta=os.path.dirname(bot.ruta_patrimonio))
+    otro.p = bot.p
+    otro.precios = dict(bot.precios)
+    otro._foto()
+    with open(bot.ruta_patrimonio, newline="", encoding="utf-8") as fh:
+        assert len(list(csv.DictReader(fh))) == 2
+
+
+def test_una_curva_antigua_se_pone_al_dia_sin_perder_fotos(tmp_path, monkeypatch):
+    monkeypatch.setattr(datos, "DIR_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setattr(config, "capital_inicial", lambda: 10_000.0)
+    ruta = tmp_path / "patrimonio_historico.csv"
+    ruta.write_text("utc,patrimonio,usdt,contado,no_realizado,neto,btc\n"
+                    "2026-11-10T04:08:45+00:00,4962.7,1236.11,3727.34,-0.75,0.0,74573.9\n"
+                    "2026-11-10T05:09:09+00:00,4962.8,1236.11,3727.59,-0.99,0.0,74581.9\n", encoding="utf-8")
+    b = ejecutor.Bot(feed=FeedFalso(), carpeta=str(tmp_path))
+    import csv
+    with open(ruta, newline="", encoding="utf-8") as fh:
+        filas = list(csv.DictReader(fh))
+    assert list(filas[0]) == ejecutor.COLUMNAS_PATRIMONIO and len(filas) == 2
+    assert filas[1]["patrimonio"] == "4962.8" and filas[1]["btc"] == "74581.9"
+    assert filas[0]["financiacion"] == "" and filas[0]["comisiones"] == "", "no se inventan"
+    assert b.hora_foto == int(datetime(2026, 11, 10, 5, tzinfo=timezone.utc).timestamp() // 3600)
+
+
+def test_tras_un_reinicio_el_panel_ve_la_tendencia_sin_esperar_a_la_vela(bot, tmp_path):
+    avanzar(bot, 0)
+    bot.decidir()
+    otro = ejecutor.Bot(feed=bot.feed, carpeta=str(tmp_path))
+    otro.p = bot.p
+    avanzar(otro, 0)
+    assert otro.instantanea()["monedas"][0]["puntuacion"] is None, "aún no ha leído nada"
+    ops = len(otro.cartera.perp), dict(otro.cartera.contado)
+    otro.ciclo()
+    e = otro.instantanea()
+    assert (len(otro.cartera.perp), dict(otro.cartera.contado)) == ops, "leer no opera"
+    assert otro.decision == {}, "no ha decidido: la vela ya estaba decidida"
+    m = e["monedas"][0]
+    assert m["puntuacion"] == pytest.approx(bot.instantanea()["monedas"][0]["puntuacion"])
+    assert len(m["relojes"]["cruces"]) == len(bot.p.cruces)
+    assert e["proxima_decision_utc"] > e["decision_vela_utc"]
+
+
+def test_ganancias_y_mercado_para_el_panel(bot):
+    avanzar(bot, 0)
+    bot.decidir()
+    bot._foto()
+    g = bot.ganancias("Europe/Madrid")
+    assert g["zona"] == "Europe/Madrid" and len(g["dias"]) >= 1
+    total = g["resumen"]["total"]
+    assert total["ganancia"] == pytest.approx(bot.instantanea()["ganancia"], abs=1e-6)
+    assert total["comisiones"] == pytest.approx(bot.cartera.comisiones)
+    assert total["mercado"] + total["financiacion"] - total["comisiones"] == pytest.approx(total["ganancia"])
+    m = bot.mercado()
+    assert [x["simbolo"] for x in m["monedas"]] == list(SIMBOLOS)
+    assert all(len(x["t"]) == len(x["c"]) == ejecutor.VELAS_SEMANA for x in m["monedas"])
+    assert m["monedas"][0]["t"] == sorted(m["monedas"][0]["t"])
+
+
+def test_cuando_toca_la_proxima_decision(bot):
+    avanzar(bot, 0)
+    bot.decidir()
+    e = bot.instantanea()
+    t = bot.ultima_decision_t
+    assert datetime.fromisoformat(e["decision_vela_utc"]).timestamp() * 1000 == t + MS4
+    assert datetime.fromisoformat(e["proxima_decision_utc"]).timestamp() * 1000 == t + 2 * MS4
+    # Con velas nuevas sin decidir (bot parado, o esperando a las rezagadas), la que toca ya pasó.
+    avanzar(bot, 3)
+    assert datetime.fromisoformat(bot.instantanea()["proxima_decision_utc"]).timestamp() < time.time()

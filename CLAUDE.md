@@ -8,9 +8,11 @@ Al dueño se le habla en español, corto, sin nombres de ficheros ni de funcione
 ## Qué es qué
 
 - `bot/` — el bot. `estrategia.py` (decide, función pura de velas cerradas), `cartera.py`
-  (contabilidad simulada), `ejecutor.py` (bucle), `datos.py` (velas), `panel.py` + `panel_estatico/`.
+  (contabilidad simulada), `ejecutor.py` (bucle), `datos.py` (velas), `resumen.py` (ganancia por
+  día y mes para el panel), `panel.py` + `panel_estatico/` (sin librerías de fuera; política de
+  contenido estricta: nada de scripts ni estilos en línea).
 - `investigacion/` — simulador y estudios. `salidas/` y `datos_cache/` se regeneran y no van a git.
-- `tests/` — `.venv/bin/python -m pytest` (~25 s).
+- `tests/` — `.venv/bin/python -m pytest` (~40 s).
 - `01_…` a `13_…`, `panel_web.py`, `panel_static/` — el sistema anterior. No se ejecuta. No se
   arregla ni se borra sin que el dueño lo pida.
 - Servicio: `jstrategy-bot.service` (systemd de usuario). Copia en `despliegue/`.
@@ -39,4 +41,5 @@ Al dueño se le habla en español, corto, sin nombres de ficheros ni de funcione
   `OMP_NUM_THREADS=1`, de uno en uno.
 - Binance responde 451 desde la salida actual del servidor. Los volcados históricos
   (`data.binance.vision`) sí bajan; en vivo el bot usa el primer mercado que conteste.
-- `ccxt` 4.5.54 falla al cargar OKX (`TypeError` al ordenar mercados); por eso hoy cae en Bitget.
+- `ccxt` 4.5.54 fallaba al cargar OKX (`TypeError` al ordenar mercados) y caía en Bitget; desde la
+  tarde del 2026-11-10, al reiniciar, OKX contesta y es el que se usa.

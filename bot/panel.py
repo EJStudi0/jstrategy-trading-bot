@@ -11,6 +11,11 @@ POST: cualquier página abierta en el mismo navegador podía pulsarle los botone
 (CSRF). Un navegador nunca añade por su cuenta una cabecera `Authorization`, así
 que ese ataque deja de existir en vez de mitigarse. La página en sí no lleva
 ningún dato: sin token solo enseña el formulario para escribirlo.
+
+Además, cada respuesta lleva una política de contenido estricta: la página solo
+ejecuta sus propios ficheros y solo habla con este mismo servidor. Si algún día
+se colase texto con forma de código en un dato, el navegador no lo ejecutaría (y
+el token, que vive en el almacenamiento del navegador, no tendría adónde ir).
 """
 
 from __future__ import annotations
@@ -22,6 +27,7 @@ import os
 import secrets
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -33,6 +39,24 @@ log = logging.getLogger("bot")
 DIR_ESTATICO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "panel_estatico")
 CADUCIDAD_CONFIRMACION_S = 45
 
+# Lo único que se sirve sin token: la página y sus piezas. Ningún otro fichero de la carpeta.
+ESTATICOS = {
+    "index.html": "text/html; charset=utf-8",
+    "panel.css": "text/css; charset=utf-8",
+    "panel.js": "text/javascript; charset=utf-8",
+    "graficas.js": "text/javascript; charset=utf-8",
+    "formato.js": "text/javascript; charset=utf-8",
+    "icono.svg": "image/svg+xml",
+}
+POLITICA = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; "
+            "connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+CABECERAS = {
+    "Content-Security-Policy": POLITICA,
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+}
+
 
 def _ultimas_filas(ruta: str, n: int) -> list:
     if not os.path.exists(ruta):
@@ -42,10 +66,14 @@ def _ultimas_filas(ruta: str, n: int) -> list:
     return filas[-n:]
 
 
-def _serie_patrimonio(ruta: str, maximo: int = 600) -> list:
-    filas = _ultimas_filas(ruta, 100_000)
+def _serie_patrimonio(ruta: str, maximo: int = 600, horas: int = 0) -> list:
+    """La curva para la gráfica: las últimas `horas` (0 = toda), aclarada a `maximo` puntos."""
+    filas = _ultimas_filas(ruta, 200_000)
+    desde = (datetime.now(timezone.utc) - timedelta(hours=horas)).isoformat(timespec="seconds") if horas else ""
     puntos = []
     for f in filas:
+        if desde and str(f.get("utc", "")) < desde:
+            continue
         try:
             puntos.append({"utc": f["utc"], "patrimonio": float(f["patrimonio"]),
                            "neto": float(f.get("neto") or 0.0),
@@ -86,17 +114,22 @@ def construir_app(bot, token: str):
 
     sin_cache = {"Cache-Control": "no-store"}
 
+    @app.middleware("http")
+    async def cabeceras(request: Request, siguiente):
+        respuesta = await siguiente(request)
+        for k, v in CABECERAS.items():
+            respuesta.headers.setdefault(k, v)
+        return respuesta
+
+    def estatico(nombre: str):
+        if nombre not in ESTATICOS:
+            raise HTTPException(status_code=404, detail="No existe")
+        return FileResponse(os.path.join(DIR_ESTATICO, nombre), media_type=ESTATICOS[nombre],
+                            headers=sin_cache)
+
     @app.get("/")
     def raiz():
-        return FileResponse(os.path.join(DIR_ESTATICO, "index.html"), headers=sin_cache)
-
-    @app.get("/panel.css")
-    def css():
-        return FileResponse(os.path.join(DIR_ESTATICO, "panel.css"), headers=sin_cache)
-
-    @app.get("/panel.js")
-    def js():
-        return FileResponse(os.path.join(DIR_ESTATICO, "panel.js"), headers=sin_cache)
+        return estatico("index.html")
 
     @app.get("/api/estado", dependencies=[Depends(exigir_token)])
     def estado():
@@ -108,8 +141,17 @@ def construir_app(bot, token: str):
                             headers=sin_cache)
 
     @app.get("/api/patrimonio", dependencies=[Depends(exigir_token)])
-    def patrimonio():
-        return JSONResponse(_serie_patrimonio(bot.ruta_patrimonio), headers=sin_cache)
+    def patrimonio(horas: int = 0):
+        return JSONResponse(_serie_patrimonio(bot.ruta_patrimonio, horas=max(0, min(horas, 200_000))),
+                            headers=sin_cache)
+
+    @app.get("/api/ganancias", dependencies=[Depends(exigir_token)])
+    def ganancias(zona: str = "UTC"):
+        return JSONResponse(bot.ganancias(zona), headers=sin_cache)
+
+    @app.get("/api/mercado", dependencies=[Depends(exigir_token)])
+    def mercado():
+        return JSONResponse(bot.mercado(), headers=sin_cache)
 
     @app.post("/api/mando", dependencies=[Depends(exigir_token)])
     async def mando(request: Request):
@@ -139,6 +181,13 @@ def construir_app(bot, token: str):
             return JSONResponse(bot.cambiar_ajustes(datos), headers=sin_cache)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
+
+    # Al final, para que no tape ninguna ruta de la API.
+    @app.get("/{nombre}")
+    def pieza(nombre: str):
+        if nombre == "index.html":
+            raise HTTPException(status_code=404, detail="No existe")
+        return estatico(nombre)
 
     return app
 

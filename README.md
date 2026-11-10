@@ -84,8 +84,22 @@ tail -f bot_stdout.log                    # qué está haciendo
 ```
 
 **Panel:** en el puerto 8787 del servidor, solo en la red de casa (dirección y puerto en `.env`:
-`JORGE_BOT_PANEL_HOST` y `JORGE_BOT_PANEL_PORT`). Pide el token de `JORGE_BOT_PANEL_TOKEN`. Enseña patrimonio, exposición, cobertura por moneda y últimas
-operaciones; deja elegir el nivel de riesgo con un botón por nivel (o a medida, con los deslizadores), y tiene el mando:
+`JORGE_BOT_PANEL_HOST` y `JORGE_BOT_PANEL_PORT`). Pide el token de `JORGE_BOT_PANEL_TOKEN`. Tiene cuatro
+secciones (en el móvil, en una barra abajo; claro u oscuro):
+
+- **Resumen** — patrimonio, ganancia de hoy, de la semana, del mes y media por día; la curva (24 h a
+  todo, o comparada con Bitcoin) con la exposición debajo; de qué está hecha la cartera, y cuándo
+  toca la próxima decisión. Una frase dice en llano qué está haciendo el bot.
+- **Ganancias** — la ganancia de cada día y de cada mes, en dólares y en la hora de quien mira (la
+  medianoche es la suya), con un calendario y de dónde sale cada tramo: mercado, financiación y
+  comisiones, que suman exacto. Al lado, lo medido en la prueba para el nivel en uso pasado a dólares
+  al día con el patrimonio de hoy, año por año, frente a lo real.
+- **Monedas** — precio y última semana, tendencia con los diez relojes que la forman, si Bitcoin
+  frena a las demás, y cuánto de cada base está cubierto; las operaciones, agrupadas por decisión.
+- **Mando** — el modo y el nivel de riesgo, cada nivel con lo que dio en la prueba en dólares al día,
+  su peor caída y sus años; cada cambio pide confirmación. El ajuste fino (deslizadores) sigue ahí.
+
+Los modos del mando:
 
 - **Automático** — el bot decide.
 - **Pausa** — no opera; las posiciones se quedan como están.
@@ -95,7 +109,12 @@ operaciones; deja elegir el nivel de riesgo con un botón por nivel (o a medida,
 El mando y los ajustes sobreviven a un reinicio: un bot parado a mano no vuelve a operar solo.
 
 Ficheros que escribe: `estado_cartera.json` (la cartera), `estado_bot.json` (mando y ajustes),
-`diario_operaciones.csv` (cada operación) y `patrimonio_historico.csv` (una línea por hora).
+`diario_operaciones.csv` (cada operación) y `patrimonio_historico.csv` (una línea por hora en punto,
+con la financiación y las comisiones acumuladas: de ahí sale el reparto de cada día).
+
+El panel autentica con el token en una cabecera, nunca en cookies, y sirve una política de contenido
+estricta: la página solo ejecuta sus propios ficheros y solo habla con el bot. Las gráficas están
+hechas a mano en SVG, sin librerías de fuera.
 
 Los datos vienen del primer mercado que conteste de `binanceusdm, okx, bitget, gate, kucoinfutures,
 mexc` (se cambia con `JORGE_BOT_MERCADOS`). Binance responde 451 según la salida a internet del
@@ -108,10 +127,13 @@ servidor; el bot cambia solo.
 ```
 
 Incluyen: que ningún indicador ni la estrategia miran al futuro; la contabilidad de comisiones,
-financiación y coberturas; el mando y el reinicio; quién puede usar el panel; y
+financiación y coberturas; el mando y el reinicio; quién puede usar el panel y qué sirve; que la
+ganancia de cada día se corte en la medianoche de quien mira y que su reparto cuadre; que los relojes
+que enseña el panel promedien la puntuación con la que decide el bot; y
 `tests/test_replica.py`, que alimenta el bot vela a vela con 60 días reales y exige que acabe
 exactamente donde el simulador; y `tests/test_niveles.py`, que recalcula las cifras de cada nivel de
-riesgo que enseña el panel y falla si dejan de ser ciertas.
+riesgo que enseña el panel (ganancia anual, peor caída, meses en positivo y cada año) y falla si
+dejan de ser ciertas.
 
 Repetir la investigación (baja ~40 MB la primera vez):
 

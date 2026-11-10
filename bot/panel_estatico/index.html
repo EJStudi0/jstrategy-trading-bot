@@ -2,108 +2,303 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f4f4f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
 <title>Bot Jorge</title>
+<link rel="icon" href="/icono.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/panel.css">
+<script type="module" src="/panel.js"></script>
 </head>
 <body>
-<main class="viz-root">
 
-  <section id="acceso" class="tarjeta acceso" hidden>
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-marca" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5.5"/><path d="M7.5 15l3-3.2 2.6 2 3.6-4.6"/></symbol>
+  <symbol id="i-resumen" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></symbol>
+  <symbol id="i-ganancias" viewBox="0 0 24 24"><path d="M4 20h16"/><rect x="5.5" y="11" width="3" height="6" rx="1"/><rect x="10.5" y="5.5" width="3" height="11.5" rx="1"/><rect x="15.5" y="8.5" width="3" height="8.5" rx="1"/></symbol>
+  <symbol id="i-monedas" viewBox="0 0 24 24"><circle cx="9.5" cy="9.5" r="5.5"/><path d="M14.7 10.4a5.5 5.5 0 1 1-4.3 4.3"/><path d="M9.5 7.5v4"/></symbol>
+  <symbol id="i-mando" viewBox="0 0 24 24"><path d="M4 7.5h9M18.5 7.5H20M4 16.5h3.5M12.5 16.5H20"/><circle cx="15.8" cy="7.5" r="2.3"/><circle cx="10" cy="16.5" r="2.3"/></symbol>
+  <symbol id="i-auto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M10.4 8.8v6.4l5-3.2z"/></symbol>
+  <symbol id="i-pausa" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M10 9.3v5.4M14 9.3v5.4"/></symbol>
+  <symbol id="i-cubrir" viewBox="0 0 24 24"><path d="M12 3.5l7 2.8v5.4c0 4.2-3 7.4-7 8.8-4-1.4-7-4.6-7-8.8V6.3z"/><path d="M9.2 12.2l2 2 3.8-4"/></symbol>
+  <symbol id="i-salir" viewBox="0 0 24 24"><path d="M10 4.5H7a2.5 2.5 0 0 0-2.5 2.5v10A2.5 2.5 0 0 0 7 19.5h3"/><path d="M15 8l4 4-4 4M19 12H9.5"/></symbol>
+  <symbol id="i-sol" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.8v2.1M12 19.1v2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2.8 12h2.1M19.1 12h2.1M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5"/></symbol>
+  <symbol id="i-luna" viewBox="0 0 24 24"><path d="M19.5 14.6A7.8 7.8 0 0 1 9.4 4.5a7.8 7.8 0 1 0 10.1 10.1z"/></symbol>
+  <symbol id="i-tema-auto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-aviso" viewBox="0 0 24 24"><path d="M12 4.2l8.6 15.3H3.4z"/><path d="M12 10v4.2M12 16.9v.1"/></symbol>
+  <symbol id="i-bien" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.6 12.3l2.3 2.3 4.6-4.8"/></symbol>
+  <symbol id="i-izq" viewBox="0 0 24 24"><path d="M14.5 6.5L9 12l5.5 5.5"/></symbol>
+  <symbol id="i-der" viewBox="0 0 24 24"><path d="M9.5 6.5L15 12l-5.5 5.5"/></symbol>
+  <symbol id="i-candado" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></symbol>
+  <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+</svg>
+
+<main id="acceso" class="acceso" hidden>
+  <div class="acceso-tarjeta">
+    <svg class="acceso-marca" aria-hidden="true"><use href="#i-marca"/></svg>
     <h1>Bot Jorge</h1>
-    <p>Escribe el token del panel (está en <code>.env</code>, línea <code>JORGE_BOT_PANEL_TOKEN</code>).</p>
+    <p class="acceso-sub">Panel de la simulación</p>
     <form id="form-token">
-      <label for="campo-token">Token</label>
-      <input id="campo-token" type="password" autocomplete="current-password" required>
-      <button type="submit" class="boton principal">Entrar</button>
+      <label for="campo-token">Token del panel</label>
+      <input id="campo-token" type="password" autocomplete="current-password" spellcheck="false" required>
+      <button type="submit" class="boton primario ancho">Entrar</button>
     </form>
+    <p class="acceso-ayuda"><svg class="icono" aria-hidden="true"><use href="#i-candado"/></svg>Está en <code>.env</code>, línea <code>JORGE_BOT_PANEL_TOKEN</code>. Se guarda solo en este aparato.</p>
     <p id="acceso-error" class="error" role="alert"></p>
-  </section>
+  </div>
+</main>
 
-  <div id="panel" hidden>
-    <header class="cabecera">
-      <h1>Bot Jorge</h1>
-      <span class="chip">Simulación</span>
-      <span id="salud" class="salud" role="status"></span>
+<div id="app" class="app" hidden>
+  <nav class="nav" aria-label="Secciones">
+    <div class="nav-marca"><svg class="icono marca" aria-hidden="true"><use href="#i-marca"/></svg><span>Bot Jorge</span></div>
+    <button type="button" class="nav-boton" data-ir="resumen"><svg class="icono" aria-hidden="true"><use href="#i-resumen"/></svg><span>Resumen</span></button>
+    <button type="button" class="nav-boton" data-ir="ganancias"><svg class="icono" aria-hidden="true"><use href="#i-ganancias"/></svg><span>Ganancias</span></button>
+    <button type="button" class="nav-boton" data-ir="monedas"><svg class="icono" aria-hidden="true"><use href="#i-monedas"/></svg><span>Monedas</span></button>
+    <button type="button" class="nav-boton" data-ir="mando"><svg class="icono" aria-hidden="true"><use href="#i-mando"/></svg><span>Mando</span></button>
+    <p class="nav-pie">Simulación: dinero ficticio, mercado real.</p>
+  </nav>
+
+  <div class="contenido">
+    <header class="barra">
+      <div class="barra-titulo">
+        <svg class="icono marca solo-movil" aria-hidden="true"><use href="#i-marca"/></svg>
+        <h1 id="titulo-vista">Resumen</h1>
+      </div>
+      <div class="barra-estado">
+        <span class="chip chip-sim">Simulación</span>
+        <span id="salud" class="salud" role="status">Conectando…</span>
+      </div>
     </header>
 
-    <section class="heroe" aria-labelledby="t-patrimonio">
-      <p id="t-patrimonio" class="etiqueta">Patrimonio</p>
-      <p class="cifra"><span id="patrimonio">—</span> <span class="unidad">USDT</span></p>
-      <p id="ganancia" class="delta"></p>
-    </section>
+    <div id="avisos" class="avisos" hidden></div>
 
-    <section class="fichas" aria-label="Resumen de la cartera">
-      <div class="ficha"><p class="etiqueta">Exposición al mercado</p><p class="valor" id="f-neto">—</p><p class="nota">de tu capital sube y baja con el precio</p></div>
-      <div class="ficha"><p class="etiqueta">Base en monedas</p><p class="valor" id="f-base">—</p><p class="nota">lo que el bot mantiene comprado</p></div>
-      <div class="ficha"><p class="etiqueta">Cubierto</p><p class="valor" id="f-cubierto">—</p><p class="nota">de la base está protegido con cortos</p></div>
-      <div class="ficha"><p class="etiqueta">USDT libres</p><p class="valor" id="f-usdt">—</p><p class="nota">garantía de las coberturas</p></div>
-      <div class="ficha"><p class="etiqueta">Financiación</p><p class="valor" id="f-financiacion">—</p><p class="nota">cobrada por las coberturas</p></div>
-      <div class="ficha"><p class="etiqueta">Comisiones</p><p class="valor" id="f-comisiones">—</p><p class="nota">pagadas hasta hoy</p></div>
-    </section>
+    <!-- ── Resumen ─────────────────────────────────────────────────────────── -->
+    <section class="vista" data-vista="resumen" aria-labelledby="titulo-vista">
+      <div class="rejilla">
+        <article class="tarjeta heroe c-5">
+          <p class="etiqueta">Patrimonio</p>
+          <p class="cifra-heroe"><span id="pat-entero">—</span><span id="pat-decimales" class="decimales"></span><span class="unidad">$</span></p>
+          <p id="pat-delta" class="delta"></p>
+          <p id="pat-nota" class="nota"></p>
+          <p id="frase" class="frase"></p>
+        </article>
 
-    <section class="tarjeta" aria-labelledby="t-grafica">
-      <h2 id="t-grafica">Patrimonio en USDT</h2>
-      <div id="grafica" class="grafica"></div>
-      <details>
-        <summary>Ver como tabla</summary>
-        <div class="tabla-desliza"><table id="tabla-patrimonio"><thead><tr><th>Día</th><th class="num">Patrimonio</th><th class="num">Exposición</th></tr></thead><tbody></tbody></table></div>
-      </details>
-    </section>
+        <div class="kpis c-7">
+          <article class="tarjeta kpi"><p class="etiqueta">Hoy</p><p class="kpi-valor" id="k-hoy">—</p><p class="kpi-sub" id="k-hoy-sub"></p></article>
+          <article class="tarjeta kpi"><p class="etiqueta">Esta semana</p><p class="kpi-valor" id="k-semana">—</p><p class="kpi-sub" id="k-semana-sub"></p></article>
+          <article class="tarjeta kpi"><p class="etiqueta">Este mes</p><p class="kpi-valor" id="k-mes">—</p><p class="kpi-sub" id="k-mes-sub"></p></article>
+          <article class="tarjeta kpi"><p class="etiqueta">Media por día</p><p class="kpi-valor" id="k-media">—</p><p class="kpi-sub" id="k-media-sub"></p></article>
+        </div>
 
-    <section class="tarjeta" aria-labelledby="t-mando">
-      <h2 id="t-mando">Mando</h2>
-      <div class="mandos" role="group" aria-label="Modo de operación">
-        <button class="boton mando" data-mando="auto">Automático</button>
-        <button class="boton mando" data-mando="pausa">Pausa</button>
-        <button class="boton mando" data-mando="neutral">Cubrir todo</button>
-        <button class="boton mando peligro" data-mando="fuera">Salir a USDT</button>
+        <article class="tarjeta tarjeta-curva c-8" aria-labelledby="t-curva">
+          <header class="tarjeta-cab">
+            <h2 id="t-curva">Evolución</h2>
+            <div class="controles">
+              <div class="segmentado" id="curva-horas" role="group" aria-label="Periodo de la curva">
+                <button type="button" data-valor="24">24 h</button>
+                <button type="button" data-valor="168">7 d</button>
+                <button type="button" data-valor="720">30 d</button>
+                <button type="button" data-valor="0">Todo</button>
+              </div>
+              <label class="interruptor"><input type="checkbox" id="vs-btc"><span class="interruptor-pista" aria-hidden="true"></span><span>Comparar con BTC</span></label>
+            </div>
+          </header>
+          <ul id="leyenda-curva" class="leyenda" hidden>
+            <li><span class="clave linea serie-1"></span>Tu patrimonio</li>
+            <li><span class="clave linea contexto"></span>Bitcoin, de referencia</li>
+          </ul>
+          <div id="grafica-curva" class="grafica"></div>
+          <details class="tabla-vista">
+            <summary>Ver como tabla</summary>
+            <div class="tabla-desliza"><table id="tabla-curva"><thead><tr><th>Cuándo</th><th class="num">Patrimonio</th><th class="num">Expuesto</th><th class="num solo-ancho">Bitcoin</th></tr></thead><tbody></tbody></table></div>
+          </details>
+        </article>
+
+        <div class="columna c-4">
+          <article class="tarjeta" aria-labelledby="t-cartera">
+            <header class="tarjeta-cab"><h2 id="t-cartera">Cartera</h2></header>
+            <div id="barra-cartera" class="segmentos"></div>
+            <ul id="leyenda-cartera" class="leyenda"></ul>
+            <dl class="datos">
+              <div><dt>Expuesto al mercado</dt><dd id="d-neto">—</dd></div>
+              <div><dt>Base cubierta</dt><dd id="d-cubierto">—</dd></div>
+              <div><dt>Financiación cobrada</dt><dd id="d-fin">—</dd></div>
+              <div><dt>Comisiones pagadas</dt><dd id="d-com">—</dd></div>
+              <div><dt>Garantía, sobre lo cubierto</dt><dd id="d-garantia">—</dd></div>
+            </dl>
+          </article>
+
+          <article class="tarjeta ciclo" aria-labelledby="t-ciclo">
+            <header class="tarjeta-cab"><h2 id="t-ciclo">Próxima decisión</h2><span id="c-modo" class="chip"></span></header>
+            <p class="ciclo-cuenta"><svg class="icono" aria-hidden="true"><use href="#i-reloj"/></svg><span id="c-cuenta">—</span></p>
+            <div class="progreso" aria-hidden="true"><div class="progreso-relleno" id="c-barra"></div></div>
+            <p class="nota" id="c-nota"></p>
+          </article>
+        </div>
       </div>
-      <p id="mando-explica" class="nota"></p>
-      <p id="mando-error" class="error" role="alert"></p>
     </section>
 
-    <section class="tarjeta" aria-labelledby="t-monedas">
-      <h2 id="t-monedas">Monedas</h2>
-      <div class="tabla-desliza">
-        <table id="tabla-monedas">
-          <thead><tr><th>Moneda</th><th>Tendencia</th><th class="num solo-ancho">Base</th><th class="num">Cubierto</th><th class="num">Expuesto</th><th class="num precio">Precio</th></tr></thead>
-          <tbody></tbody>
-        </table>
+    <!-- ── Ganancias ───────────────────────────────────────────────────────── -->
+    <section class="vista" data-vista="ganancias" aria-labelledby="titulo-vista" hidden>
+      <div class="rejilla">
+        <div class="kpis kpis-fila c-12">
+          <article class="tarjeta kpi"><p class="etiqueta">Hoy</p><p class="kpi-valor" id="g-hoy">—</p><p class="kpi-sub" id="g-hoy-sub"></p></article>
+          <article class="tarjeta kpi"><p class="etiqueta">Esta semana</p><p class="kpi-valor" id="g-semana">—</p><p class="kpi-sub" id="g-semana-sub"></p></article>
+          <article class="tarjeta kpi"><p class="etiqueta">Este mes</p><p class="kpi-valor" id="g-mes">—</p><p class="kpi-sub" id="g-mes-sub"></p></article>
+          <article class="tarjeta kpi"><p class="etiqueta">Desde el inicio</p><p class="kpi-valor" id="g-total">—</p><p class="kpi-sub" id="g-total-sub"></p></article>
+        </div>
+
+        <article class="tarjeta c-12" aria-labelledby="t-dias">
+          <header class="tarjeta-cab">
+            <h2 id="t-dias">Ganancia por día</h2>
+            <div class="segmentado" id="dias-rango" role="group" aria-label="Días que enseñar">
+              <button type="button" data-valor="14">14 d</button>
+              <button type="button" data-valor="30">30 d</button>
+              <button type="button" data-valor="90">90 d</button>
+              <button type="button" data-valor="0">Todo</button>
+            </div>
+          </header>
+          <div id="grafica-dias" class="grafica"></div>
+          <p id="dias-nota" class="nota"></p>
+          <details class="tabla-vista">
+            <summary>Ver como tabla</summary>
+            <div class="tabla-desliza"><table id="tabla-dias"><thead><tr><th>Día</th><th class="num">Ganancia</th><th class="num">%</th><th class="num">Financiación</th><th class="num solo-ancho">Comisiones</th><th class="num solo-ancho">Mercado</th></tr></thead><tbody></tbody></table></div>
+          </details>
+        </article>
+
+        <article class="tarjeta c-7" aria-labelledby="t-calendario">
+          <header class="tarjeta-cab">
+            <h2 id="t-calendario">Calendario</h2>
+            <div class="cal-nav">
+              <button type="button" class="boton-icono" id="cal-antes" aria-label="Mes anterior"><svg class="icono" aria-hidden="true"><use href="#i-izq"/></svg></button>
+              <span id="cal-mes" class="cal-mes" aria-live="polite">—</span>
+              <button type="button" class="boton-icono" id="cal-despues" aria-label="Mes siguiente"><svg class="icono" aria-hidden="true"><use href="#i-der"/></svg></button>
+            </div>
+          </header>
+          <div id="calendario" class="calendario"></div>
+          <div id="cal-detalle" class="cal-detalle" aria-live="polite"></div>
+        </article>
+
+        <div class="columna c-5">
+          <article class="tarjeta medido" aria-labelledby="t-medido">
+            <header class="tarjeta-cab"><h2 id="t-medido">Lo medido y lo real</h2><span id="m-nivel" class="chip"></span></header>
+            <div class="comparativa">
+              <div><p class="etiqueta">Lo medido, al día</p><p class="kpi-valor" id="m-medido">—</p><p class="kpi-sub" id="m-medido-sub"></p></div>
+              <div><p class="etiqueta">Lo real, al día</p><p class="kpi-valor" id="m-real">—</p><p class="kpi-sub" id="m-real-sub"></p></div>
+            </div>
+            <div class="tabla-desliza">
+              <table class="tabla-compacta" id="tabla-anios"><thead><tr><th>Año medido</th><th class="num">Ganancia</th><th class="num">≈ al día</th></tr></thead><tbody></tbody></table>
+            </div>
+            <p class="nota" id="m-nota"></p>
+          </article>
+  
+          <article class="tarjeta" aria-labelledby="t-origen">
+            <header class="tarjeta-cab"><h2 id="t-origen">De dónde sale</h2><span id="o-periodo" class="nota"></span></header>
+            <div id="origen" class="origen"></div>
+            <p class="nota">Mercado: lo que movió el precio en la parte expuesta, más el deslizamiento al operar. Financiación: lo que cobran (o pagan) las coberturas cada pocas horas. Comisiones: lo que cuesta cada operación.</p>
+          </article>
+        </div>
+
+        <article class="tarjeta c-12" aria-labelledby="t-meses">
+          <header class="tarjeta-cab"><h2 id="t-meses">Por mes</h2></header>
+          <div id="grafica-meses" class="grafica"></div>
+          <div class="tabla-desliza">
+            <table id="tabla-meses"><thead><tr><th>Mes</th><th class="num">Ganancia</th><th class="num">%</th><th class="num">Días en positivo</th><th class="num solo-ancho">Financiación</th><th class="num solo-ancho">Comisiones</th><th class="num solo-ancho">Mejor día</th></tr></thead><tbody></tbody></table>
+          </div>
+        </article>
       </div>
-      <p class="nota">Tendencia: de −1 (bajista) a +1 (alcista), mezcla de diez relojes. El bot cubre la parte de la base que la tendencia no respalda.</p>
-      <p id="decision" class="nota"></p>
     </section>
 
-    <section class="tarjeta" aria-labelledby="t-riesgo">
-      <h2 id="t-riesgo">Riesgo</h2>
-      <div id="niveles" class="niveles" role="group" aria-label="Nivel de riesgo"></div>
-      <p id="nivel-explica" class="nota"></p>
-      <form id="form-ajustes" class="ajustes"></form>
-      <p id="ajustes-estado" class="nota" role="status"></p>
-    </section>
+    <!-- ── Monedas ─────────────────────────────────────────────────────────── -->
+    <section class="vista" data-vista="monedas" aria-labelledby="titulo-vista" hidden>
+      <div class="rejilla">
+        <article class="tarjeta c-12" aria-labelledby="t-monedas">
+          <header class="tarjeta-cab">
+            <h2 id="t-monedas">Monedas</h2>
+            <p class="nota" id="monedas-resumen"></p>
+          </header>
+          <div class="monedas-cabecera" aria-hidden="true">
+            <span>Moneda</span><span class="num">Precio</span><span>7 días</span><span>Tendencia</span><span>Relojes</span><span>Posición</span>
+          </div>
+          <div id="lista-monedas" class="lista-monedas" role="list"></div>
+          <details class="explica">
+            <summary>Cómo leer esto</summary>
+            <p><strong>Tendencia</strong> va de −1 (bajista) a +1 (alcista). Es la media de diez relojes: seis cruces de medias (de 2/8 a 16/64 días) y cuatro rupturas de canal (5, 10, 20 y 40 días). Un punto lleno a la derecha del todo es un reloj a favor; uno rojo, en contra; uno hueco, sin señal todavía.</p>
+            <p><strong>Bitcoin manda:</strong> si BTC no está en tendencia a favor, las demás no suben exposición aunque su tendencia sea buena.</p>
+            <p><strong>Posición:</strong> el bot tiene una base de cada moneda y cubre con un corto la parte que la tendencia no respalda. Cubierto no gana ni pierde con el precio.</p>
+          </details>
+        </article>
 
-    <section class="tarjeta" aria-labelledby="t-operaciones">
-      <h2 id="t-operaciones">Últimas operaciones</h2>
-      <div class="tabla-desliza">
-        <table id="tabla-operaciones">
-          <thead><tr><th>Cuándo (UTC)</th><th>Moneda</th><th>Qué</th><th class="num">Importe</th><th class="num solo-ancho">Precio</th><th class="solo-ancho">Motivo</th></tr></thead>
-          <tbody></tbody>
-        </table>
+        <article class="tarjeta c-12" aria-labelledby="t-operaciones">
+          <header class="tarjeta-cab"><h2 id="t-operaciones">Operaciones</h2><p class="nota" id="ops-resumen"></p></header>
+          <div id="lista-operaciones" class="lista-operaciones"></div>
+          <button type="button" id="mas-operaciones" class="boton fantasma" hidden>Ver más</button>
+        </article>
       </div>
-      <p id="sin-operaciones" class="nota" hidden>Todavía no hay operaciones.</p>
     </section>
 
-    <section id="avisos" class="tarjeta" aria-labelledby="t-avisos" hidden>
-      <h2 id="t-avisos">Avisos</h2>
-      <ul id="lista-avisos"></ul>
+    <!-- ── Mando ───────────────────────────────────────────────────────────── -->
+    <section class="vista" data-vista="mando" aria-labelledby="titulo-vista" hidden>
+      <div class="rejilla">
+        <article class="tarjeta c-12" aria-labelledby="t-modo">
+          <header class="tarjeta-cab"><h2 id="t-modo">Modo</h2><p class="nota">Se aplica al momento.</p></header>
+          <div class="opciones" role="radiogroup" aria-labelledby="t-modo">
+            <button type="button" class="opcion" data-mando="auto" role="radio"><svg class="icono" aria-hidden="true"><use href="#i-auto"/></svg><strong>Automático</strong><span>El bot decide: sigue la tendencia y cubre lo que haga falta.</span></button>
+            <button type="button" class="opcion" data-mando="pausa" role="radio"><svg class="icono" aria-hidden="true"><use href="#i-pausa"/></svg><strong>Pausa</strong><span>No opera. Las posiciones se quedan como están.</span></button>
+            <button type="button" class="opcion" data-mando="neutral" role="radio"><svg class="icono" aria-hidden="true"><use href="#i-cubrir"/></svg><strong>Cubrir todo</strong><span>Cubre el 100 % ahora, sin vender nada. El precio deja de mover tu patrimonio.</span></button>
+            <button type="button" class="opcion peligro" data-mando="fuera" role="radio"><svg class="icono" aria-hidden="true"><use href="#i-salir"/></svg><strong>Salir a USDT</strong><span>Vende la base y cierra las coberturas. Pide confirmación.</span></button>
+          </div>
+          <p id="mando-error" class="error" role="alert"></p>
+        </article>
+
+        <article class="tarjeta c-12" aria-labelledby="t-riesgo">
+          <header class="tarjeta-cab">
+            <h2 id="t-riesgo">Nivel de riesgo</h2>
+            <p class="nota">Lo medido en la prueba (2024 → nov 2026), pasado a dólares con tu patrimonio de hoy. No es una promesa.</p>
+          </header>
+          <div id="niveles" class="niveles" role="radiogroup" aria-labelledby="t-riesgo"></div>
+          <p id="nivel-estado" class="nota" role="status"></p>
+          <details class="ajuste-fino">
+            <summary>Ajuste fino</summary>
+            <form id="form-ajustes" class="ajustes"></form>
+            <p id="ajustes-estado" class="nota" role="status"></p>
+          </details>
+        </article>
+
+        <article class="tarjeta c-12" aria-labelledby="t-aparato">
+          <header class="tarjeta-cab"><h2 id="t-aparato">Este aparato</h2></header>
+          <div class="fila-ajuste">
+            <span>Tema</span>
+            <div class="segmentado" id="tema" role="group" aria-label="Tema">
+              <button type="button" data-valor="auto"><svg class="icono" aria-hidden="true"><use href="#i-tema-auto"/></svg>Auto</button>
+              <button type="button" data-valor="claro"><svg class="icono" aria-hidden="true"><use href="#i-sol"/></svg>Claro</button>
+              <button type="button" data-valor="oscuro"><svg class="icono" aria-hidden="true"><use href="#i-luna"/></svg>Oscuro</button>
+            </div>
+          </div>
+          <div class="fila-ajuste">
+            <span>Acceso</span>
+            <button type="button" id="salir" class="boton">Olvidar el token aquí</button>
+          </div>
+        </article>
+      </div>
     </section>
 
-    <footer class="pie"><span id="actualizado"></span> · <button id="salir" class="enlace">Olvidar el token en este aparato</button></footer>
+    <footer class="pie"><span id="actualizado">—</span><span id="zona-pie"></span></footer>
   </div>
+</div>
 
-</main>
-<script src="/panel.js"></script>
+<dialog id="dialogo" class="dialogo" aria-labelledby="dialogo-titulo">
+  <form method="dialog">
+    <h2 id="dialogo-titulo"></h2>
+    <p id="dialogo-texto"></p>
+    <div class="dialogo-botones">
+      <button type="submit" value="no" class="boton">Cancelar</button>
+      <button type="submit" value="si" id="dialogo-si" class="boton primario">Sí</button>
+    </div>
+  </form>
+</dialog>
+
 </body>
 </html>

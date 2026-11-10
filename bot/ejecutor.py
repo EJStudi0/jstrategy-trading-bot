@@ -21,7 +21,7 @@ from typing import Optional
 import numpy as np
 
 from bot import cartera as cart
-from bot import config, datos, estrategia
+from bot import config, datos, estrategia, resumen
 
 log = logging.getLogger("bot")
 
@@ -29,6 +29,12 @@ VELAS_HISTORIA = 1500          # ~250 días de velas de 4 h: de sobra para la me
 VELAS_MINIMAS = 700            # con menos, no se opina sobre esa moneda
 MARGEN_MINIMO = 0.20           # garantía mínima de los perpetuos sobre su nocional
 ESPERA_REZAGADAS_S = 300       # cuánto se espera a que todas las monedas publiquen la vela
+VELAS_SEMANA = 42              # siete días de velas de 4 h, para las minigráficas del panel
+
+# Curva de patrimonio: una foto por hora. Los dos acumulados del final permiten repartir la
+# ganancia de cada día entre financiación, comisiones y mercado (`bot/resumen.py`).
+COLUMNAS_PATRIMONIO = ["utc", "patrimonio", "usdt", "contado", "no_realizado", "neto", "btc",
+                       "financiacion", "comisiones"]
 
 
 class Bot:
@@ -56,11 +62,14 @@ class Bot:
         self.velas: dict = {}                  # simbolo -> Velas del intervalo de la estrategia
         self.precios: dict = {}
         self.decision: dict = {}               # última decisión, para el panel
+        self.lectura: dict = {}                # tendencia de la última vela cerrada, decida o no
+        self._t_lectura: Optional[int] = None  # vela del ancla con la que se hizo esa lectura
         self.arranque = time.time()
         self.ultimo_ciclo: Optional[float] = None
         self.ultimo_funding_consultado = 0.0
         self.ultima_financiacion = 0.0
-        self.ultima_foto = 0.0
+        self._poner_al_dia_curva()
+        self.hora_foto: Optional[int] = self._hora_de_la_ultima_foto()
         self.avisos: list = []
         self._confirmacion: Optional[tuple] = None
 
@@ -167,15 +176,19 @@ class Bot:
         t, H, L, C = m
         o = estrategia.calcular(H, L, C, self.p)
         k = len(t) - 1
+        vd = estrategia.VELAS_DIA[self.p.intervalo]
         monedas = {}
         for j, s in enumerate(self.p.simbolos):
             al_dia = not np.isnan(C[k, j])
+            ok = ~np.isnan(C[:, j])
             monedas[s] = {
                 "al_dia": bool(al_dia),
                 "puntuacion": float(o.puntuacion[k, j]),
                 "vol": None if np.isnan(o.vol[k, j]) else float(o.vol[k, j]),
                 "base": float(o.base[k, j]) if al_dia else None,
                 "neto": float(o.neto[k, j]) if al_dia else None,
+                # Solo para el panel: lo que vota cada reloj (su media es la puntuación).
+                "relojes": estrategia.relojes(H[ok, j], L[ok, j], C[ok, j], vd, self.p) if ok.any() else None,
             }
         return {"t": int(t[k]), "monedas": monedas, "escala": float(o.escala[k]),
                 "vol_prevista": float(o.vol_prevista[k])}
@@ -214,6 +227,9 @@ class Bot:
             self._vigilar_margen(precios)
 
         self.ultima_decision_t = obj["t"]
+        self.lectura = obj
+        ancla = self.velas.get(self.p.simbolos[0])
+        self._t_lectura = int(ancla.t[-1]) if ancla is not None and len(ancla) else None
         self.decision = {**obj, "utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                          "mando": self.mando, "operaciones": len(hechas)}
         self.guardar()
@@ -287,6 +303,11 @@ class Bot:
             self.liquidar_financiacion(eventos)
             if self._toca_decidir():
                 self.decidir(motivo="vela")
+            elif self._lectura_atrasada():
+                # Tras un reinicio, o mientras se espera a las rezagadas, el panel sigue viendo la
+                # tendencia de la última vela cerrada. Leer no opera.
+                self._t_lectura = int(self.velas[self.p.simbolos[0]].t[-1])
+                self.lectura = self.objetivos_actuales() or self.lectura
             self._foto()
             self.ultimo_ciclo = time.time()
             self.guardar()
@@ -304,23 +325,61 @@ class Bot:
         pasado_el_margen = time.time() * 1000 > t + ms + ESPERA_REZAGADAS_S * 1000
         return todas or pasado_el_margen
 
+    def _lectura_atrasada(self) -> bool:
+        ancla = self.velas.get(self.p.simbolos[0])
+        return ancla is not None and len(ancla) > 0 and self._t_lectura != int(ancla.t[-1])
+
     def _foto(self) -> None:
-        """Una línea por hora con el patrimonio, para la curva del panel."""
-        if time.time() - self.ultima_foto < 3600:
+        """Una línea por hora en punto con el patrimonio, para la curva y las ganancias del panel.
+
+        En punto para que la medianoche de quien mira (en una zona de horas enteras) caiga justo
+        entre dos fotos.
+        """
+        ahora = time.time()
+        hora = int(ahora // 3600)
+        if hora == self.hora_foto:
             return
-        self.ultima_foto = time.time()
+        self.hora_foto = hora
         nuevo = not os.path.exists(self.ruta_patrimonio)
         with open(self.ruta_patrimonio, "a", newline="", encoding="utf-8") as fh:
             w = csv.writer(fh)
             if nuevo:
-                w.writerow(["utc", "patrimonio", "usdt", "contado", "no_realizado", "neto", "btc"])
+                w.writerow(COLUMNAS_PATRIMONIO)
             pesos = self.cartera.pesos(self.precios)
             neto = sum(a + b for a, b in pesos.values())
-            w.writerow([datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            w.writerow([datetime.fromtimestamp(ahora, timezone.utc).isoformat(timespec="seconds"),
                         round(self.cartera.patrimonio(self.precios), 2), round(self.cartera.usdt, 2),
                         round(self.cartera.valor_contado(self.precios), 2),
                         round(self.cartera.no_realizado(self.precios), 2), round(neto, 4),
-                        self.precios.get(self.p.simbolos[0], "")])
+                        self.precios.get(self.p.simbolos[0], ""),
+                        round(self.cartera.financiacion, 4), round(self.cartera.comisiones, 4)])
+
+    def _poner_al_dia_curva(self) -> None:
+        """Una curva de una versión anterior (sin los acumulados) se reescribe con la cabecera nueva.
+
+        Las filas viejas se quedan con esos dos campos vacíos: no se inventan.
+        """
+        ruta = self.ruta_patrimonio
+        if not os.path.exists(ruta):
+            return
+        with open(ruta, newline="", encoding="utf-8") as fh:
+            cabecera = next(csv.reader(fh), None)
+        if not cabecera or cabecera == COLUMNAS_PATRIMONIO:
+            return
+        with open(ruta, newline="", encoding="utf-8") as fh:
+            filas = list(csv.DictReader(fh))
+        tmp = ruta + ".tmp"
+        with open(tmp, "w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=COLUMNAS_PATRIMONIO, restval="", extrasaction="ignore")
+            w.writeheader()
+            w.writerows(filas)
+        os.replace(tmp, ruta)
+        log.info("Curva de patrimonio puesta al día (%d fotos)", len(filas))
+
+    def _hora_de_la_ultima_foto(self) -> Optional[int]:
+        """Para no repetir foto en la misma hora tras un reinicio."""
+        puntos = resumen.leer_curva(self.ruta_patrimonio)
+        return int(puntos[-1].t.timestamp() // 3600) if puntos else None
 
     def guardar(self) -> None:
         self.cartera.guardar(self.ruta_estado)
@@ -363,7 +422,7 @@ class Bot:
             pat = self.cartera.patrimonio(precios) if precios else self.cartera.usdt
             pesos = self.cartera.pesos(precios) if precios else {}
             monedas = []
-            dec = self.decision.get("monedas", {})
+            dec = (self.lectura or self.decision).get("monedas", {})
             for s in self.p.simbolos:
                 wc, wp = pesos.get(s, (0.0, 0.0))
                 d = dec.get(s, {})
@@ -372,6 +431,7 @@ class Bot:
                     "puntuacion": d.get("puntuacion"), "vol": d.get("vol"),
                     "base": wc, "cobertura": -wp if wp < 0 else 0.0, "perp": wp, "neto": wc + wp,
                     "base_objetivo": d.get("base"), "neto_objetivo": d.get("neto"),
+                    "relojes": d.get("relojes"),
                     "valor_base": wc * pat, "valor_cobertura": -wp * pat if wp < 0 else 0.0,
                 })
             c = self.cartera
@@ -395,13 +455,70 @@ class Bot:
                                   else c.colchon_margen(precios),
                 "monedas": monedas,
                 "decision": {k: v for k, v in self.decision.items() if k != "monedas"},
+                **self._calendario_de_velas(),
                 "ajustes": {k: getattr(self.p, k) for k in config.AJUSTABLES},
                 "ajustables": config.AJUSTABLES,
                 "niveles": config.NIVELES,
+                "niveles_periodo": config.NIVELES_PERIODO,
                 "nivel": config.nivel_de(self.p),
                 "avisos": self.avisos[-5:],
                 "creada_utc": c.creada_utc,
             }
+
+
+    def _calendario_de_velas(self) -> dict:
+        """Cuándo cerró la vela de la última decisión y cuándo cierra la siguiente.
+
+        La siguiente decisión es la de la vela que viene detrás de la última decidida: si el bot
+        estuvo parado o espera a las rezagadas, esa hora ya pasó y el panel dice «ahora».
+        """
+        ms = datos.MS[self.p.intervalo]
+        ancla = self.velas.get(self.p.simbolos[0])
+        if self.ultima_decision_t is not None:
+            proxima = self.ultima_decision_t + 2 * ms
+        elif ancla is not None and len(ancla):
+            proxima = int(ancla.t[-1]) + ms
+        else:
+            proxima = None
+
+        def iso(t_ms):
+            return None if t_ms is None else datetime.fromtimestamp(t_ms / 1000, timezone.utc).isoformat()
+
+        return {
+            "intervalo": self.p.intervalo,
+            "decision_vela_utc": iso(None if self.ultima_decision_t is None else self.ultima_decision_t + ms),
+            "proxima_decision_utc": iso(proxima),
+        }
+
+    def ganancias(self, zona: Optional[str]) -> dict:
+        """Ganancia por día, semana y mes en la zona horaria de quien mira (ver `bot/resumen.py`)."""
+        with self.lock:
+            c = self.cartera
+            pat = c.patrimonio(self.precios) if self.precios else c.usdt
+            ahora = resumen.Punto(datetime.now(timezone.utc), pat, c.financiacion, c.comisiones)
+            creada = resumen.instante(c.creada_utc) if c.creada_utc else None
+        puntos = resumen.leer_curva(self.ruta_patrimonio)
+        if creada is not None:
+            inicio = resumen.Punto(creada, c.capital_inicial, 0.0, 0.0)
+        elif puntos:
+            inicio = puntos[0]
+        else:
+            inicio = ahora
+        return resumen.calcular(puntos, inicio, ahora, zona)
+
+    def mercado(self) -> dict:
+        """Cierres de la última semana de cada moneda, para las minigráficas del panel."""
+        ms = datos.MS[self.p.intervalo]
+        monedas = []
+        for s in self.p.simbolos:
+            v = self.velas.get(s)
+            n = 0 if v is None else min(len(v), VELAS_SEMANA)
+            monedas.append({
+                "simbolo": s, "precio": self.precios.get(s),
+                "t": [int(x) + ms for x in v.t[-n:]] if n else [],      # hora de cierre de cada vela
+                "c": [float(x) for x in v.c[-n:]] if n else [],
+            })
+        return {"intervalo": self.p.intervalo, "monedas": monedas}
 
 
 def configurar_registro() -> None:

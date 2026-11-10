@@ -110,6 +110,22 @@ def _canal(h: np.ndarray, l: np.ndarray, c: np.ndarray, n: int) -> np.ndarray:
     return np.where(ultimo >= 0, evento[np.maximum(ultimo, 0)], 0.0)
 
 
+def relojes(h: np.ndarray, l: np.ndarray, c: np.ndarray, velas_dia: float, p: Parametros) -> dict:
+    """Lo que vota cada reloj en la última vela: lo que `puntuacion` promedia. Solo para enseñarlo.
+
+    No interviene en ninguna decisión; `tests/test_estrategia.py` comprueba que su media es la
+    puntuación, para que el panel no enseñe una cosa y el bot haga otra.
+    """
+    n = len(c)
+    if n == 0:
+        return {"cruces": [], "rupturas": [], "rodaje": True}
+    cruces = [float(np.sign(ind.ema(c, r * velas_dia)[-1] - ind.ema(c, s * velas_dia)[-1]))
+              for r, s in p.cruces]
+    rupturas = [float(_canal(h, l, c, int(round(d * velas_dia)))[-1]) for d in p.rupturas]
+    return {"cruces": cruces, "rupturas": rupturas,
+            "rodaje": n <= int(round(p.rodaje_dias * velas_dia))}
+
+
 @dataclass
 class Objetivos:
     """Pesos objetivo (fracción del patrimonio) para cada vela y moneda."""

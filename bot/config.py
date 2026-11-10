@@ -32,21 +32,31 @@ AJUSTABLES = {
 }
 
 # Niveles de riesgo: la misma estrategia con más o menos exposición a la tendencia.
-# `anual_pct` y `caida_pct` son lo medido en la prueba (2024-01 → 2026-11) por
-# investigacion/perfiles.py; tests/test_niveles.py las recalcula y falla si dejan de ser ciertas.
+# Las cifras son lo medido en la prueba (2024-01 → 2026-11) por investigacion/perfiles.py:
+# ganancia anual, peor caída, meses en positivo y ganancia de cada año (2026, hasta noviembre).
+# tests/test_niveles.py las recalcula y falla si dejan de ser ciertas.
 # Por encima de ×2 la rentabilidad deja de subir y la caída no: no se ofrece.
 NIVELES = {
     "constante": {"nombre": "Constante", "ajustes": {"vol_cartera": 0.10, "apalancamiento": 1.0},
-                  "anual_pct": 8.2, "caida_pct": -8.7},
+                  "anual_pct": 8.2, "caida_pct": -8.7, "meses_positivos_pct": 49,
+                  "por_anio": {"2024": 21.0, "2025": 0.1, "2026": 3.3}},
     "prudente":  {"nombre": "Prudente",  "ajustes": {"vol_cartera": 0.15, "apalancamiento": 1.0},
-                  "anual_pct": 9.5, "caida_pct": -12.1},
+                  "anual_pct": 9.5, "caida_pct": -12.1, "meses_positivos_pct": 49,
+                  "por_anio": {"2024": 25.0, "2025": -0.1, "2026": 3.7}},
     "moderado":  {"nombre": "Moderado",  "ajustes": {"vol_cartera": 0.25, "apalancamiento": 1.0},
-                  "anual_pct": 12.4, "caida_pct": -17.6},
+                  "anual_pct": 12.4, "caida_pct": -17.6, "meses_positivos_pct": 40,
+                  "por_anio": {"2024": 33.1, "2025": 0.4, "2026": 4.4}},
     "decidido":  {"nombre": "Decidido",  "ajustes": {"vol_cartera": 0.40, "apalancamiento": 1.5},
-                  "anual_pct": 16.6, "caida_pct": -27.4},
+                  "anual_pct": 16.6, "caida_pct": -27.4, "meses_positivos_pct": 43,
+                  "por_anio": {"2024": 53.8, "2025": -3.8, "2026": 4.7}},
     "agresivo":  {"nombre": "Agresivo",  "ajustes": {"vol_cartera": 0.60, "apalancamiento": 2.0},
-                  "anual_pct": 22.7, "caida_pct": -37.3},
+                  "anual_pct": 22.7, "caida_pct": -37.3, "meses_positivos_pct": 40,
+                  "por_anio": {"2024": 79.1, "2025": -5.5, "2026": 5.9}},
 }
+
+
+# El tramo de la prueba en el que se midieron (el final, exclusivo: el día de los datos de entonces).
+NIVELES_PERIODO = {"desde": "2024-01-01", "hasta": "2026-11-09"}
 
 
 def nivel_de(p: Parametros) -> Optional[str]:

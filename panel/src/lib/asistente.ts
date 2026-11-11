@@ -1,6 +1,6 @@
 // Cuentas y frases del asistente: todo funciones puras, para poder probarlas.
 import { hora, dia, valido } from "./formato";
-import type { Alerta, ModoVeto } from "../tipos";
+import type { Alerta, Mando, ModoVeto } from "../tipos";
 
 /** Cuánto se mueve una moneda frente a lo suyo normal (1 = normal). */
 export function etiquetaMovimiento(x: number | null | undefined): "tranquilo" | "normal" | "movido" | "—" {
@@ -39,8 +39,8 @@ export function precioParaCasilla(x: number | null | undefined): string {
   return String(Number(x.toFixed(decimales))).replace(".", ",");
 }
 
-/** Avisos que merecen mirarse: fuerza alta o media. */
-export const importante = (a: Pick<Alerta, "fuerza">) => a.fuerza !== "baja";
+/** Avisos que merecen mirarse: fuerza alta o media, y que no estén silenciados. */
+export const importante = (a: Pick<Alerta, "fuerza" | "callada">) => a.fuerza !== "baja" && !a.callada;
 
 /** El stop sugerido solo vale si queda al otro lado del precio para el lado elegido. */
 export function stopPara(a: Pick<Alerta, "precio" | "stop">, lado: 1 | -1): number | null {
@@ -56,6 +56,41 @@ export function hastaCuando(ms: number, ahora = Date.now()): string {
   if (f.toDateString() === hoy.toDateString()) return "a las " + hora(f);
   if (f.toDateString() === manana.toDateString()) return "mañana a las " + hora(f);
   return "el " + dia(f) + " a las " + hora(f);
+}
+
+/** El precio de un stop a un tanto por ciento del precio de ahora: por debajo en un largo, por encima en un corto. */
+export function stopPorPct(lado: 1 | -1, precio: number | null | undefined, porcentaje: number): number | null {
+  if (!valido(precio) || precio <= 0 || !(porcentaje > 0) || porcentaje >= 100) return null;
+  return precio * (1 - (lado * porcentaje) / 100);
+}
+
+/** El objetivo que gana `veces` lo que arriesga el stop. null si no hay stop o está del lado equivocado. */
+export function objetivoPorMultiplo(lado: 1 | -1, precio: number | null | undefined, stop: number | null | undefined, veces: number): number | null {
+  if (!valido(precio) || !valido(stop) || precio <= 0 || !(veces > 0)) return null;
+  const riesgo = lado * (precio - stop);
+  return riesgo > 0 ? precio + lado * veces * riesgo : null;
+}
+
+/** Lo que se gana si llega al objetivo, en USDT (sin comisiones). null si el objetivo no queda a favor. */
+export function gananciaDeObjetivo(lado: 1 | -1, precio: number | null | undefined, objetivo: number | null | undefined,
+                                   usdt: number | null | undefined): number | null {
+  if (!valido(precio) || !valido(objetivo) || !valido(usdt) || precio <= 0 || usdt <= 0) return null;
+  const tramo = (lado * (objetivo - precio)) / precio;
+  return tramo > 0 ? usdt * tramo : null;
+}
+
+/** Cuánto le falta al precio para llegar a otro (un nivel, un stop, un objetivo), en %: +1,3 = tiene que subir un 1,3 %. */
+export function distanciaPct(precio: number | null | undefined, hasta: number | null | undefined): number | null {
+  if (!valido(precio) || !valido(hasta) || precio <= 0) return null;
+  return 100 * (hasta / precio - 1);
+}
+
+/** El estado del bot en pocas palabras: «Automático», «En pausa hasta las 18:30», «Cubierto», «Fuera». */
+export function fraseMando(mando: Mando, hastaMs: number | null | undefined, ahora = Date.now()): string {
+  if (mando === "auto") return "Automático";
+  if (mando === "fuera") return "Fuera";
+  const que = mando === "pausa" ? "En pausa" : "Cubierto";
+  return valido(hastaMs) && hastaMs > ahora ? `${que} hasta ${hastaCuando(hastaMs, ahora).replace(/^a /, "")}` : que;
 }
 
 export const DURACIONES = [

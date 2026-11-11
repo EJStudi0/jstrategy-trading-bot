@@ -247,6 +247,26 @@ export interface Alerta {
   a_24h?: number | null;
   vista?: boolean;
   previo?: Previo | null;
+  /** Silenciado por el dueño (su patrón o su moneda): se apunta, pero no cuenta como «sin ver». */
+  callada?: boolean;
+  /** Solo en los avisos de patrón «nivel»: el precio que pidió vigilar y su nota. */
+  nivel?: number;
+  nota?: string;
+}
+
+/** «Avísame si…»: un precio que el dueño pidió vigilar. */
+export interface NivelPrecio {
+  id: number;
+  simbolo: string;
+  precio: number;
+  sentido: 1 | -1;
+  nota: string;
+  creado_utc: string;
+}
+
+export interface PrefsAsistente {
+  patrones_callados: string[];
+  monedas_calladas: string[];
 }
 
 export interface PosicionManual {
@@ -310,6 +330,8 @@ export interface Asistente {
   mando_hasta_ms: number | null;
   velas_al_dia: number;
   monedas: string[];
+  niveles?: NivelPrecio[];
+  prefs?: PrefsAsistente;
 }
 
 /** Lo que se manda para abrir una operación a mano. */

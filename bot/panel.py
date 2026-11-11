@@ -238,6 +238,14 @@ def construir_app(bot, token: str, dir_centinela: Optional[str] = None):
                     r = a.mover(d.get("id"), precios, d.get("stop"), d.get("objetivo"))
                 elif accion == "veto":
                     r = bot.poner_veto(d.get("simbolo"), d.get("modo"), d.get("horas") or 0)
+                elif accion == "cerrar_todas":
+                    r = a.cerrar_todas(precios)
+                elif accion == "reiniciar":
+                    r = a.reiniciar_cuenta(d.get("capital"))
+                elif accion == "nivel":
+                    r = a.quitar_nivel(d["id"]) if d.get("id") else a.poner_nivel(d.get("simbolo"), d.get("precio"), precios, d.get("nota") or "")
+                elif accion == "prefs":
+                    r = a.cambiar_prefs(d)
                 elif accion == "vistas":
                     a.marcar_vistas()
                     r = {"ok": True}

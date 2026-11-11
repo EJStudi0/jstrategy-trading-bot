@@ -336,6 +336,7 @@ class Bot:
         try:
             a = self.asistente
             a.vigilar(self.precios, fin_manual)
+            a.vigilar_niveles(self.precios)
             a.analizar(self.velas)
             a.seguir(self.precios)
             a.guardar()

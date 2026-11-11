@@ -17,9 +17,11 @@ import { Mando } from "./vistas/Mando";
 import { Mercado } from "./vistas/Mercado";
 import { Resumen } from "./vistas/Resumen";
 
-// Un enlace con #vista=… o #tema=… abre ahí (el token del fragmento ya lo recogió api.ts).
+// Un enlace con #vista=…, #sub=… (sub-pestaña del asistente) o #tema=… abre ahí (el token del fragmento ya lo recogió api.ts).
 const vistaInicial = fragmento.get("vista");
 if (VISTAS.some((v) => v.id === vistaInicial)) ponerPref("vista", vistaInicial as Prefs["vista"]);
+const subInicial = fragmento.get("sub");
+if (subInicial === "avisos" || subInicial === "operar" || subInicial === "monedas" || subInicial === "ajustes") ponerPref("sub", subInicial);
 const temaInicial = fragmento.get("tema");
 if (temaInicial === "auto" || temaInicial === "oscuro" || temaInicial === "claro") ponerPref("tema", temaInicial);
 
@@ -88,7 +90,7 @@ export function App() {
                 {prefs.vista === "centinela" && (
                   <Centinela c={centinela.data} curva={curvaCentinela.data} prefs={prefs} poner={poner} tema={tema} />
                 )}
-                {prefs.vista === "asistente" && <Asistente a={asistente.data} e={e} />}
+                {prefs.vista === "asistente" && <Asistente a={asistente.data} e={e} sub={prefs.sub} alSub={(s) => poner("sub", s)} alIr={irA} />}
                 {prefs.vista === "mando" && (
                   <Mando e={e} alIr={irA} prefs={prefs} poner={poner} alOlvidar={() => { olvidarToken(); qc.clear(); setConToken(false); }} />
                 )}

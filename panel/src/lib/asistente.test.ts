@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { etiquetaMovimiento, hastaCuando, leerNumero, precioParaCasilla, riesgoDeStop, stopPara } from "./asistente";
+import {
+  distanciaPct, etiquetaMovimiento, fraseMando, gananciaDeObjetivo, hastaCuando, importante, leerNumero, objetivoPorMultiplo,
+  precioParaCasilla, riesgoDeStop, stopPara, stopPorPct,
+} from "./asistente";
 
 describe("asistente", () => {
   it("pone nombre al movimiento de una moneda", () => {
@@ -38,6 +41,39 @@ describe("asistente", () => {
     expect(stopPara({ precio: 100, stop: 96 }, 1)).toBe(96);
     expect(stopPara({ precio: 100, stop: 96 }, -1)).toBeNull();
     expect(stopPara({ precio: 100, stop: null }, 1)).toBeNull();
+  });
+  it("pone el stop a un tanto por ciento, del lado que toca", () => {
+    expect(stopPorPct(1, 100, 2)).toBeCloseTo(98);
+    expect(stopPorPct(-1, 100, 2)).toBeCloseTo(102);
+    expect(stopPorPct(1, null, 2)).toBeNull();
+    expect(stopPorPct(1, 100, 0)).toBeNull();
+  });
+  it("pone el objetivo a un múltiplo del riesgo", () => {
+    expect(objetivoPorMultiplo(1, 100, 98, 2)).toBeCloseTo(104);
+    expect(objetivoPorMultiplo(-1, 100, 103, 1)).toBeCloseTo(97);
+    expect(objetivoPorMultiplo(1, 100, 102, 2)).toBeNull();   // stop del lado equivocado
+    expect(objetivoPorMultiplo(1, 100, null, 2)).toBeNull();
+    // Con ese objetivo se gana justo el múltiplo de lo que se arriesga.
+    const riesgo = riesgoDeStop(1, 100, 98, 500, 1000)!.usdt;
+    expect(gananciaDeObjetivo(1, 100, objetivoPorMultiplo(1, 100, 98, 3), 500)).toBeCloseTo(3 * riesgo);
+    expect(gananciaDeObjetivo(1, 100, 95, 500)).toBeNull();
+  });
+  it("mide lo que falta hasta un nivel", () => {
+    expect(distanciaPct(100, 101.5)).toBeCloseTo(1.5);
+    expect(distanciaPct(100, 90)).toBeCloseTo(-10);
+    expect(distanciaPct(null, 90)).toBeNull();
+    expect(distanciaPct(0, 90)).toBeNull();
+  });
+  it("resume el estado del bot y deja fuera lo silenciado", () => {
+    const ahora = new Date(2026, 10, 11, 10, 0).getTime();
+    expect(fraseMando("auto", null, ahora)).toBe("Automático");
+    expect(fraseMando("pausa", new Date(2026, 10, 11, 18, 30).getTime(), ahora)).toBe("En pausa hasta las 18:30");
+    expect(fraseMando("neutral", new Date(2026, 10, 12, 2, 0).getTime(), ahora)).toBe("Cubierto hasta mañana a las 02:00");
+    expect(fraseMando("pausa", null, ahora)).toBe("En pausa");
+    expect(fraseMando("fuera", null, ahora)).toBe("Fuera");
+    expect(importante({ fuerza: "alta" })).toBe(true);
+    expect(importante({ fuerza: "alta", callada: true })).toBe(false);
+    expect(importante({ fuerza: "baja" })).toBe(false);
   });
   it("dice cuándo caduca un mando", () => {
     const ahora = new Date(2026, 10, 11, 10, 0).getTime();

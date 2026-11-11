@@ -3,7 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { ZONA } from "../lib/tiempo";
-import type { Asistente, Centinela, Estado, Ganancias, Grafica, Mando, Mercado, ModoVeto, Operacion, OrdenManual, PuntoCurva } from "../tipos";
+import type { Asistente, Centinela, Estado, Ganancias, Grafica, Mando, Mercado, ModoVeto, Operacion, OrdenManual, PrefsAsistente, PuntoCurva } from "../tipos";
 
 const S = 1000;
 
@@ -106,6 +106,13 @@ export const useCerrarManual = () => useAccionAsistente<{ id: number; parte?: nu
 export const useMoverManual = () => useAccionAsistente<{ id: number; stop: number | null; objetivo: number | null }>("mover");
 /** `modo` null quita el veto; `horas` 0 = sin caducidad. */
 export const usePonerVeto = () => useAccionAsistente<{ simbolo: string; modo: ModoVeto | null; horas?: number }>("veto");
+export const useCerrarTodas = () => useAccionAsistente<Record<string, never>>("cerrar_todas");
+/** Cuenta manual de cero con ese capital ficticio. El servidor se niega si hay operaciones abiertas. */
+export const useReiniciarCuenta = () => useAccionAsistente<{ capital: number }>("reiniciar");
+/** Con `simbolo` y `precio` crea un nivel a vigilar; con `id` lo borra. */
+export const useNivel = () => useAccionAsistente<{ simbolo: string; precio: number; nota?: string } | { id: number }>("nivel");
+/** Qué patrones y monedas no avisan. Las listas van completas. */
+export const usePrefsAsistente = () => useAccionAsistente<Partial<PrefsAsistente>>("prefs");
 
 /** Marca los avisos como vistos; solo hace falta refrescar el asistente (el contador de la pestaña). */
 export function useMarcarVistas() {

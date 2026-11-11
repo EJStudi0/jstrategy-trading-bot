@@ -59,7 +59,9 @@ def test_no_miran_al_futuro():
     todo = patrones.detectar(t30, *resto, ctx)
     k = len(t30) - 500
     corto = patrones.detectar(t30[:k], *(x[:k] for x in resto), ctx[:k])
-    for nombre in patrones.CATALOGO:
+    for nombre in corto:
+        if nombre == "_":
+            continue
         assert np.array_equal(todo[nombre][:k], corto[nombre]), nombre
 
 
@@ -68,6 +70,6 @@ def test_catalogo_completo_y_despues():
     t30, o3, h3, l3, c3, v3 = en_30(t, o, h, l, c, v)
     det = patrones.detectar(t30, o3, h3, l3, c3, v3, fondo_de(t, o, h, l, c, v, t30))
     det.pop("_")
-    assert set(det) == set(patrones.CATALOGO)
+    assert set(det) | {"nivel"} == set(patrones.CATALOGO)
     x = patrones.despues(det["barrido"], c3)
     assert len(x) <= np.count_nonzero(det["barrido"])

@@ -134,3 +134,29 @@ def test_avisa_de_una_ruptura_y_lleva_el_marcador(tmp_path):
     assert al["a_24h"] == pytest.approx(3.0) and a.marcador[al["patron"]]["a_favor"] == 1
     i = a.instantanea({"BTCUSDT": 100.0})
     assert i["alertas"][0]["id"] >= 1 and i["manual"]["patrimonio"] == 1000 and i["sin_ver"] >= 1
+
+
+def test_nivel_de_precio_avisa_una_vez(a):
+    px = {"BTCUSDT": 100.0}
+    n = a.poner_nivel("BTCUSDT", 105, px, "resistencia")
+    assert n["sentido"] == 1 and a.vigilar_niveles({"BTCUSDT": 104.0}) == []
+    al = a.vigilar_niveles({"BTCUSDT": 105.5})
+    assert al[0]["patron"] == "nivel" and al[0]["fuerza"] == "alta" and a.niveles == []
+    assert a.vigilar_niveles({"BTCUSDT": 106.0}) == []
+    abajo = a.poner_nivel("BTCUSDT", 95, px)
+    assert abajo["sentido"] == -1 and a.quitar_nivel(abajo["id"]) == []
+    with pytest.raises(ValueError):
+        a.poner_nivel("BTCUSDT", "caro", px)
+
+
+def test_cerrar_todas_reiniciar_y_callar(a):
+    px = {"BTCUSDT": 100.0, "ETHUSDT": 50.0}
+    a.abrir("BTCUSDT", 1, 100, px)
+    a.abrir("ETHUSDT", -1, 100, px)
+    with pytest.raises(ValueError):
+        a.reiniciar_cuenta(5000)
+    assert len(a.cerrar_todas(px)) == 2 and a.manual["posiciones"] == []
+    assert a.reiniciar_cuenta(5000)["saldo"] == 5000 and a.manual["cerradas"] == []
+    assert a.cambiar_prefs({"patrones_callados": ["volumen"], "monedas_calladas": ["ETHUSDT"]})["patrones_callados"] == ["volumen"]
+    with pytest.raises(ValueError):
+        a.cambiar_prefs({"patrones_callados": ["inventado"]})

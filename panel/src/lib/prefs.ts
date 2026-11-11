@@ -6,6 +6,8 @@ const CLAVE = "bot_jorge_pref_v2";
 
 export interface Prefs {
   vista: "resumen" | "ganancias" | "mercado" | "centinela" | "asistente" | "mando";
+  /** La sub-pestaña del asistente que se miró la última vez. */
+  sub: "avisos" | "operar" | "monedas" | "ajustes";
   tema: "auto" | "oscuro" | "claro";
   horas: 24 | 168 | 720 | 0;
   vsBtc: boolean;
@@ -16,11 +18,12 @@ export interface Prefs {
   marcas: boolean;
 }
 
-const BASE: Prefs = { vista: "resumen", tema: "auto", horas: 168, vsBtc: false, dias: 30, moneda: "BTCUSDT",
+const BASE: Prefs = { vista: "resumen", sub: "avisos", tema: "auto", horas: 168, vsBtc: false, dias: 30, moneda: "BTCUSDT",
                       reloj: "8/32", canal: "20", marcas: true };
 
 const VALIDOS: { [K in keyof Prefs]?: readonly Prefs[K][] } = {
   vista: ["resumen", "ganancias", "mercado", "centinela", "asistente", "mando"],
+  sub: ["avisos", "operar", "monedas", "ajustes"],
   tema: ["auto", "oscuro", "claro"],
   horas: [24, 168, 720, 0],
   dias: [14, 30, 90, 0],

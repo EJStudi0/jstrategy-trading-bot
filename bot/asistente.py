@@ -54,6 +54,8 @@ class Asistente:
         self.vetos: dict = g.get("vetos", {})            # símbolo -> {modo, hasta_ms}
         self.mando_hasta_ms: Optional[int] = g.get("mando_hasta_ms")
         self.n_id: int = g.get("n_id", 0)
+        self.niveles: list = g.get("niveles", [])        # «avísame si X cruza tal precio»
+        self.prefs: dict = {"patrones_callados": [], "monedas_calladas": [], **g.get("prefs", {})}
         self.velas: dict = {}                            # símbolo -> Velas de 30 min
         self._analizada: dict = {}                       # símbolo -> apertura de la última vela analizada
         self.previo: dict = {}                           # patrón -> {n, a_favor_pct, media_pct} (último mes)
@@ -67,7 +69,8 @@ class Asistente:
     def guardar(self) -> None:
         config.escribir_json(self.ruta, {"manual": self.manual, "alertas": self.alertas[-MAX_ALERTAS:],
                                          "marcador": self.marcador, "vetos": self.vetos,
-                                         "mando_hasta_ms": self.mando_hasta_ms, "n_id": self.n_id})
+                                         "mando_hasta_ms": self.mando_hasta_ms, "n_id": self.n_id,
+                                         "niveles": self.niveles, "prefs": self.prefs})
 
     def _id(self) -> int:
         self.n_id += 1
@@ -139,13 +142,14 @@ class Asistente:
                                "lado": lado, "precio": precio, "fuerza": FUERZA.get(k, "baja"),
                                "stop": round(precio - lado * 2 * a, 8) if lado else None,
                                "atr_pct": round(100 * a / precio, 2), "fondo": int(ctx[-1]),
-                               "a_4h": None, "a_24h": None, "vista": False})
+                               "a_4h": None, "a_24h": None, "vista": False,
+                               "callada": k in self.prefs["patrones_callados"] or s in self.prefs["monedas_calladas"]})
         self._recalcular_previo()
         for al in nuevas:
             al["previo"] = self.previo.get(al["patron"])
             self.alertas.append(al)
             log.info("Aviso: %s %s %s", al["simbolo"], al["patron"], {1: "arriba", -1: "abajo", 0: ""}[al["lado"]])
-            if self.notificar and al["fuerza"] != "baja":
+            if self.notificar and al["fuerza"] != "baja" and not al.get("callada"):
                 try:
                     self.notificar(al)
                 except Exception as e:
@@ -304,6 +308,77 @@ class Asistente:
                 hechas.append(self.cerrar(p["id"], precios, motivo="liquidada"))
         return hechas
 
+    def cerrar_todas(self, precios: dict) -> list:
+        return [self.cerrar(p["id"], precios, motivo="manual") for p in list(self.manual["posiciones"])
+                if precios.get(p["simbolo"])]
+
+    def reiniciar_cuenta(self, capital: float) -> dict:
+        """Empieza la cuenta manual de cero con otro capital ficticio. Solo sin operaciones abiertas."""
+        capital = float(capital)
+        if self.manual["posiciones"]:
+            raise ValueError("cierra antes las operaciones abiertas")
+        if not 100 <= capital <= 1_000_000:
+            raise ValueError("el capital ficticio va de 100 a 1 000 000 USDT")
+        self.manual = {"capital_inicial": capital, "saldo": capital, "posiciones": [], "cerradas": [], "creada_utc": _utc()}
+        self.guardar()
+        return self.manual
+
+    # ── niveles de precio y preferencias de avisos ────────────────────────────
+
+    def poner_nivel(self, simbolo: str, precio, precios: dict, nota: str = "") -> dict:
+        if simbolo not in self.simbolos:
+            raise ValueError("moneda desconocida")
+        px = precios.get(simbolo)
+        try:
+            precio = float(precio)
+        except (TypeError, ValueError):
+            raise ValueError("el precio debe ser un número")
+        if not px or not precio > 0 or precio == px:
+            raise ValueError("pon un precio distinto del actual")
+        if len(self.niveles) >= 40:
+            raise ValueError("ya hay 40 niveles: borra alguno")
+        n = {"id": self._id(), "simbolo": simbolo, "precio": precio, "sentido": 1 if precio > px else -1,
+             "nota": str(nota)[:120], "creado_utc": _utc()}
+        self.niveles.append(n)
+        self.guardar()
+        return n
+
+    def quitar_nivel(self, id_: int) -> list:
+        self.niveles = [n for n in self.niveles if n["id"] != int(id_)]
+        self.guardar()
+        return self.niveles
+
+    def vigilar_niveles(self, precios: dict) -> list:
+        """Avisa (una vez) cuando el precio cruza un nivel que el dueño pidió vigilar."""
+        nuevas = []
+        for n in list(self.niveles):
+            px = precios.get(n["simbolo"])
+            if px and n["sentido"] * (px - n["precio"]) >= 0:
+                self.niveles.remove(n)
+                al = {"id": self._id(), "utc": _utc(), "t": int(time.time() * 1000) - patrones.M30, "simbolo": n["simbolo"],
+                      "patron": "nivel", "lado": n["sentido"], "precio": float(px), "fuerza": "alta", "stop": None,
+                      "atr_pct": None, "fondo": self.lectura.get(n["simbolo"], {}).get("fondo", 0), "a_4h": None,
+                      "a_24h": None, "vista": False, "callada": False, "nivel": n["precio"], "nota": n["nota"], "previo": None}
+                self.alertas.append(al)
+                nuevas.append(al)
+                log.info("Aviso: %s cruza %s", n["simbolo"], n["precio"])
+                if self.notificar:
+                    try:
+                        self.notificar(al)
+                    except Exception as e:
+                        log.warning("no se pudo sacar el aviso: %s", str(e)[:120])
+        return nuevas
+
+    def cambiar_prefs(self, cambios: dict) -> dict:
+        for clave, validos in (("patrones_callados", set(patrones.CATALOGO)), ("monedas_calladas", set(self.simbolos))):
+            if clave in cambios:
+                lista = cambios[clave]
+                if not isinstance(lista, list) or not set(lista) <= validos:
+                    raise ValueError("preferencias no válidas")
+                self.prefs[clave] = sorted(set(lista))
+        self.guardar()
+        return self.prefs
+
     # ── vetos y mando temporal ────────────────────────────────────────────────
 
     def vetos_activos(self) -> dict:
@@ -367,7 +442,8 @@ class Asistente:
         return {
             "utc": _utc(), "simulacion": True,
             "alertas": list(reversed(self.alertas[-100:])),
-            "sin_ver": sum(1 for a in self.alertas if not a.get("vista") and a["fuerza"] != "baja"),
+            "sin_ver": sum(1 for a in self.alertas if not a.get("vista") and a["fuerza"] != "baja" and not a.get("callada")),
+            "niveles": self.niveles, "prefs": self.prefs,
             "catalogo": patrones.CATALOGO, "previo": self.previo, "marcador": marcador,
             "lectura": self.lectura,
             "manual": {"capital_inicial": ci, "patrimonio": pat, "ganancia": pat - ci,

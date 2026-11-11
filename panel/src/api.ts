@@ -10,10 +10,10 @@ export class SinAcceso extends Error {
 }
 
 function leerInicial(): string | null {
-  // Se admite en el fragmento (#token=…, que nunca viaja al servidor) y, por enlaces antiguos, en ?token=…
+  // Se admite en el fragmento (#token=…, que nunca viaja al servidor), para el ensayo. En la consulta
+  // (?token=…) no: viajaría al servidor y quedaría en el historial.
   const frag = new URLSearchParams(location.hash.replace(/^#/, ""));
-  const consulta = new URLSearchParams(location.search);
-  const dado = frag.get("token") || consulta.get("token");
+  const dado = frag.get("token");
   if (dado) {
     guardar(dado);
     return dado;

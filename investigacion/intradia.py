@@ -93,6 +93,7 @@ class Moneda:
     i15_30: np.ndarray = field(repr=False, default=None)  # 1.ª vela de 15 min tras cerrar cada vela de 30
     ctx30: np.ndarray = field(repr=False, default=None)   # +1 alcista, -1 bajista, 0 nada (en cada cierre de 30)
     adx30: np.ndarray = field(repr=False, default=None)   # ADX de 1 h visto desde cada cierre de 30
+    mov30: np.ndarray = field(repr=False, default=None)   # movimiento de 1 h frente a su media de 30 días
 
 
 def cargar(nombre: str, desde=None, hasta=None) -> Moneda:
@@ -112,6 +113,8 @@ def cargar(nombre: str, desde=None, hasta=None) -> Moneda:
     mon.i15_30 = np.searchsorted(t, k30.tc, side="left")
     mon.ctx30 = contexto(k4, k1d, k30.tc)
     mon.adx30 = al_reloj(k60.tc, adx(k60), k30.tc)
+    a60 = atr(k60) / k60.c
+    mon.mov30 = al_reloj(k60.tc, a60 / pd.Series(a60).rolling(720, min_periods=240).mean().to_numpy(), k30.tc)
     mon._k4, mon._k1d = k4, k1d
     return mon
 
@@ -135,6 +138,10 @@ class Señales:
     stop: np.ndarray
     vida: np.ndarray     # velas de 15 min que la orden espera
     adx: np.ndarray      # ADX de 1 h al dar la señal (para filtrar después)
+    mov: np.ndarray = None  # movimiento relativo al dar la señal
+
+    def donde(self, m):
+        return Señales(*[None if x is None else x[m] for x in (self.i, self.d, self.nivel, self.stop, self.vida, self.adx, self.mov)])
 
 
 def _señales(mon, j30, d, nivel, stop, vida):
@@ -142,7 +149,7 @@ def _señales(mon, j30, d, nivel, stop, vida):
     i = mon.i15_30[j30]
     ok = i < len(mon.t)
     return Señales(i[ok], np.asarray(d, float)[ok], np.asarray(nivel, float)[ok],
-                   np.asarray(stop, float)[ok], np.full(ok.sum(), vida), mon.adx30[j30][ok])
+                   np.asarray(stop, float)[ok], np.full(ok.sum(), vida), mon.adx30[j30][ok], mon.mov30[j30][ok])
 
 
 def jugada_ruptura(mon: Moneda, ventana=16, estrechez=3.0, volumen=1.5, espera=8, margen=1.0) -> Señales:
@@ -163,6 +170,19 @@ def jugada_ruptura(mon: Moneda, ventana=16, estrechez=3.0, volumen=1.5, espera=8
     orden = np.argsort(np.concatenate(js), kind="stable")
     return _señales(mon, np.concatenate(js)[orden], np.concatenate(ds)[orden],
                     np.concatenate(niv)[orden], np.concatenate(st)[orden], espera * 2)
+
+
+def jugada_inercia(mon: Moneda, ventana=48, volumen=2.5, margen=1.0, fondo=True) -> Señales:
+    """D · Inercia: la vela de 30 min cierra por fuera del máximo/mínimo de `ventana` velas con volumen
+    `volumen` veces el normal. Entrada a mercado en la apertura siguiente; stop a `margen` ATR del cierre."""
+    k = mon.k30
+    a = atr(k)
+    H = pd.Series(k.h).rolling(ventana).max().shift(1).to_numpy()
+    L = pd.Series(k.l).rolling(ventana).min().shift(1).to_numpy()
+    fuerte = k.v > volumen * pd.Series(k.v).rolling(ventana).mean().shift(1).to_numpy()
+    d = np.where(k.c > H, 1.0, np.where(k.c < L, -1.0, 0.0))
+    j = np.flatnonzero(fuerte & (d != 0) & ((mon.ctx30 == d) | (not fondo)))
+    return _señales(mon, j, d[j], np.full(len(j), np.nan), k.c[j] - d[j] * margen * a[j], 1)
 
 
 def jugada_rebote(mon: Moneda, colchon=0.25, minimo=0.5) -> Señales:
@@ -224,9 +244,10 @@ def jugada_zona(mon: Moneda, estructura=20, impulso=1.5, atras=5, caduca=72, col
 # ---------------------------------------------------------------- simulación de las operaciones
 
 def simular(mon: Moneda, s: Señales, objetivo=1.5, aguante=24, adx_min=0.0, horas=None,
-            laborables=False, lados=(1, -1), stop_max=0.03) -> pd.DataFrame:
+            laborables=False, lados=(1, -1), stop_max=0.03, seguir=None) -> pd.DataFrame:
     """Una posición a la vez por moneda. `aguante` en velas de 15 min. Si en una misma vela caben el
-    stop y el objetivo, cuenta el stop. La orden limitada solo se da por hecha si el precio la atraviesa."""
+    stop y el objetivo, cuenta el stop. La orden limitada solo se da por hecha si el precio la atraviesa.
+    `seguir`: el stop sube detrás del mejor precio YA cerrado, a esa distancia en veces el riesgo inicial."""
     t, o, h, l, c = mon.t, mon.o, mon.h, mon.l, mon.c
     n = len(t)
     libre = 0
@@ -253,6 +274,7 @@ def simular(mon: Moneda, s: Señales, objetivo=1.5, aguante=24, adx_min=0.0, hor
             continue
         meta = entrada + d * objetivo * abs(entrada - stop)
         salida, motivo, com = None, "tiempo", COM_MERCADO
+        dist, mejor = abs(entrada - stop), entrada
         ult = min(ie + aguante, n) - 1
         for i in range(ie, ult + 1):
             if (d == 1 and l[i] <= stop) or (d == -1 and h[i] >= stop):
@@ -262,6 +284,9 @@ def simular(mon: Moneda, s: Señales, objetivo=1.5, aguante=24, adx_min=0.0, hor
             if (i > ie or mercado) and ((d == 1 and h[i] > meta) or (d == -1 and l[i] < meta)):
                 salida, motivo, com, isal = meta, "objetivo", COM_LIMITADA, i
                 break
+            if seguir:
+                mejor = max(mejor, h[i]) if d == 1 else min(mejor, l[i])
+                stop = max(stop, mejor - seguir * dist) if d == 1 else min(stop, mejor + seguir * dist)
         if salida is None:
             isal, salida = ult, c[ult] * (1 - d * DESLIZ)
         a, b = np.searchsorted(mon.ft, [t[ie], t[isal] + M15], side="right")

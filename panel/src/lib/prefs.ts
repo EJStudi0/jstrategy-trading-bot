@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 const CLAVE = "bot_jorge_pref_v2";
 
 export interface Prefs {
-  vista: "resumen" | "ganancias" | "mercado" | "centinela" | "mando";
+  vista: "resumen" | "ganancias" | "mercado" | "centinela" | "asistente" | "mando";
   tema: "auto" | "oscuro" | "claro";
   horas: 24 | 168 | 720 | 0;
   vsBtc: boolean;
@@ -20,7 +20,7 @@ const BASE: Prefs = { vista: "resumen", tema: "auto", horas: 168, vsBtc: false, 
                       reloj: "8/32", canal: "20", marcas: true };
 
 const VALIDOS: { [K in keyof Prefs]?: readonly Prefs[K][] } = {
-  vista: ["resumen", "ganancias", "mercado", "centinela", "mando"],
+  vista: ["resumen", "ganancias", "mercado", "centinela", "asistente", "mando"],
   tema: ["auto", "oscuro", "claro"],
   horas: [24, 168, 720, 0],
   dias: [14, 30, 90, 0],

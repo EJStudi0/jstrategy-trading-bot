@@ -80,6 +80,9 @@ export interface Estado {
   intervalo: string;
   decision_vela_utc: string | null;
   proxima_decision_utc: string | null;
+  /** Cuándo caduca la pausa o el «cubrir todo» y el bot vuelve solo a automático (ms); null = no caduca. */
+  mando_hasta_ms?: number | null;
+  vetos?: Record<string, Veto>;
 }
 
 export interface Tramo {
@@ -209,4 +212,113 @@ export interface Centinela {
   n_operaciones?: number;
   operaciones?: { utc: string; lado: string; cantidad: number; precio: number; comision: number; motivo: string }[];
   avisos?: { utc: string; nivel: string; texto: string }[];
+}
+
+// ── Asistente: avisos de patrones, cuenta de operar a mano y vetos por moneda ───────────────────
+
+export type ModoVeto = "congelar" | "cubrir" | "cerrar";
+
+export interface Veto {
+  modo: ModoVeto;
+  desde_utc: string;
+  hasta_ms: number | null;
+}
+
+/** Qué pasó 24 h después las otras veces que salió el mismo patrón. */
+export interface Previo {
+  n: number;
+  a_favor_pct: number | null;
+  media_pct: number | null;
+}
+
+export interface Alerta {
+  id: number;
+  utc: string;
+  t: number;
+  simbolo: string;
+  patron: string;
+  lado: 1 | -1 | 0;
+  precio: number;
+  fuerza: "alta" | "media" | "baja";
+  stop: number | null;
+  atr_pct?: number | null;
+  fondo?: 1 | -1 | 0;
+  a_4h?: number | null;
+  a_24h?: number | null;
+  vista?: boolean;
+  previo?: Previo | null;
+}
+
+export interface PosicionManual {
+  id: number;
+  simbolo: string;
+  lado: 1 | -1;
+  cantidad: number;
+  entrada: number;
+  stop: number | null;
+  objetivo: number | null;
+  abierta_utc: string;
+  nota: string;
+  precio: number | null;
+  usdt: number;
+  no_realizado: number;
+  pct: number | null;
+  comisiones: number;
+  financiacion: number;
+}
+
+export interface CerradaManual {
+  id: number;
+  simbolo: string;
+  lado: 1 | -1;
+  entrada: number;
+  salida: number;
+  usdt: number;
+  abierta_utc: string;
+  cerrada_utc: string;
+  motivo: "manual" | "stop" | "objetivo" | "liquidada";
+  neto: number;
+  nota: string;
+}
+
+export interface CuentaManual {
+  capital_inicial: number;
+  patrimonio: number;
+  ganancia: number;
+  ganancia_pct: number;
+  saldo: number;
+  operaciones: number;
+  acierto_pct: number | null;
+  palanca_max: number;
+  comision_pct: number;
+  creada_utc: string | null;
+  posiciones: PosicionManual[];
+  cerradas: CerradaManual[];
+}
+
+export interface Asistente {
+  utc: string;
+  simulacion: boolean;
+  alertas: Alerta[];
+  sin_ver: number;
+  catalogo: Record<string, { nombre: string; que: string; medido: string }>;
+  previo: Record<string, Previo>;
+  marcador: Record<string, Previo & { a_favor?: number; suma?: number }>;
+  lectura: Record<string, { fondo: 1 | -1 | 0; movimiento: number | null }>;
+  manual: CuentaManual;
+  vetos: Record<string, Veto>;
+  mando_hasta_ms: number | null;
+  velas_al_dia: number;
+  monedas: string[];
+}
+
+/** Lo que se manda para abrir una operación a mano. */
+export interface OrdenManual {
+  simbolo: string;
+  lado: 1 | -1;
+  usdt: number;
+  stop?: number | null;
+  objetivo?: number | null;
+  nota?: string;
+  alerta?: number | null;
 }

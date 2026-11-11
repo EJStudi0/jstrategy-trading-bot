@@ -3,7 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { ZONA } from "../lib/tiempo";
-import type { Centinela, Estado, Ganancias, Grafica, Mando, Mercado, Operacion, PuntoCurva } from "../tipos";
+import type { Asistente, Centinela, Estado, Ganancias, Grafica, Mando, Mercado, ModoVeto, Operacion, OrdenManual, PuntoCurva } from "../tipos";
 
 const S = 1000;
 
@@ -59,13 +59,13 @@ function useRefrescarTodo() {
   return () => qc.invalidateQueries();
 }
 
-/** Cambiar el modo. Salir a USDT lo pide el servidor dos veces (la segunda con su código). */
+/** Cambiar el modo; con `horas`, la pausa o el «cubrir todo» caducan solos. Salir a USDT lo pide el servidor dos veces (la segunda con su código). */
 export function usePonerMando() {
   const refrescar = useRefrescarTodo();
   return useMutation({
-    mutationFn: async (mando: Mando) => {
-      let r = await api<{ confirmar?: string; mando?: Mando }>("/api/mando", { mando });
-      if (r.confirmar) r = await api("/api/mando", { mando, confirmacion: r.confirmar });
+    mutationFn: async ({ mando, horas = 0 }: { mando: Mando; horas?: number }) => {
+      let r = await api<{ confirmar?: string; mando?: Mando }>("/api/mando", { mando, horas });
+      if (r.confirmar) r = await api("/api/mando", { mando, horas, confirmacion: r.confirmar });
       return r;
     },
     onSettled: refrescar,
@@ -86,5 +86,32 @@ export function usePonerCentinela() {
   return useMutation({
     mutationFn: (encendido: boolean) => api<{ encendido: boolean }>("/api/centinela/interruptor", { encendido }),
     onSettled: refrescar,
+  });
+}
+
+// ── Asistente ────────────────────────────────────────────────────────────────
+
+export const useAsistente = (activo: boolean) =>
+  useQuery({ queryKey: ["asistente"], queryFn: () => api<Asistente>("/api/asistente"), refetchInterval: 15 * S, enabled: activo });
+
+/** Una acción del asistente (abrir, cerrar, mover, veto). Al acabar se vuelve a pedir todo. */
+function useAccionAsistente<T>(accion: string) {
+  const refrescar = useRefrescarTodo();
+  return useMutation({ mutationFn: (cuerpo: T) => api<unknown>("/api/asistente/" + accion, cuerpo), onSettled: refrescar });
+}
+
+export const useAbrirManual = () => useAccionAsistente<OrdenManual>("abrir");
+export const useCerrarManual = () => useAccionAsistente<{ id: number; parte?: number }>("cerrar");
+/** Stop y objetivo van siempre los dos: el que llegue vacío (null) se quita. */
+export const useMoverManual = () => useAccionAsistente<{ id: number; stop: number | null; objetivo: number | null }>("mover");
+/** `modo` null quita el veto; `horas` 0 = sin caducidad. */
+export const usePonerVeto = () => useAccionAsistente<{ simbolo: string; modo: ModoVeto | null; horas?: number }>("veto");
+
+/** Marca los avisos como vistos; solo hace falta refrescar el asistente (el contador de la pestaña). */
+export function useMarcarVistas() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ ok: boolean }>("/api/asistente/vistas", {}),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["asistente"] }),
   });
 }

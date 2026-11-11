@@ -21,6 +21,7 @@ from typing import Optional
 
 import numpy as np
 
+from bot import asistente as asis
 from bot import cartera as cart
 from bot import config, datos, estrategia, indicadores, resumen
 
@@ -74,6 +75,7 @@ class Bot:
         self.hora_foto: Optional[int] = self._hora_de_la_ultima_foto()
         self.avisos: list = []
         self._confirmacion: Optional[tuple] = None
+        self.asistente = asis.Asistente(self.feed, self.p.simbolos, carpeta)
 
     # ── datos ─────────────────────────────────────────────────────────────────
 
@@ -212,6 +214,7 @@ class Bot:
         base = {s: m["base"] for s, m in obj["monedas"].items() if m["al_dia"]}
         neto = {s: m["neto"] for s, m in obj["monedas"].items() if m["al_dia"]}
         base, neto = self._aplicar_mando(base, neto)
+        base, neto = self.asistente.aplicar_vetos(base, neto)   # lo que el dueño manda sobre monedas sueltas
         precios = {s: self.precios[s] for s in base if s in self.precios}
 
         hechas = []
@@ -301,8 +304,13 @@ class Bot:
         if not self.precios:
             return
         eventos = self.consultar_financiacion()
+        fin_manual = self._asistente_red()
         with self.lock:
             self.liquidar_financiacion(eventos)
+            if self.asistente.mando_caducado() and self.mando != "auto":
+                log.info("El mando temporal ha caducado: vuelve a automático")
+                self.poner_mando("auto")
+            self._asistente_ciclo(fin_manual)
             if self._toca_decidir():
                 self.decidir(motivo="vela")
             elif self._lectura_atrasada():
@@ -313,6 +321,26 @@ class Bot:
             self._foto()
             self.ultimo_ciclo = time.time()
             self.guardar()
+
+    def _asistente_red(self) -> list:
+        """Lo que el asistente pide a la red, fuera del candado. Si falla, el bot sigue."""
+        try:
+            self.asistente.simbolos = tuple(self.p.simbolos)
+            self.asistente.actualizar_velas()
+            return self.asistente.financiacion_pendiente()
+        except Exception:
+            log.exception("El asistente no pudo leer el mercado")
+            return []
+
+    def _asistente_ciclo(self, fin_manual: list) -> None:
+        try:
+            a = self.asistente
+            a.vigilar(self.precios, fin_manual)
+            a.analizar(self.velas)
+            a.seguir(self.precios)
+            a.guardar()
+        except Exception:
+            log.exception("Error en el asistente")
 
     def _toca_decidir(self) -> bool:
         """Hay vela nueva del ancla y las demás monedas ya la tienen (o pasó el margen de espera)."""
@@ -395,18 +423,24 @@ class Bot:
 
     # ── mando desde el panel ──────────────────────────────────────────────────
 
-    def poner_mando(self, mando: str) -> dict:
+    def poner_mando(self, mando: str, horas: float = 0) -> dict:
+        """`horas` > 0: el mando caduca solo y el bot vuelve a automático."""
         if mando not in config.MANDOS:
             raise ValueError(f"mando desconocido: {mando}")
+        horas = float(horas or 0)
+        if not 0 <= horas <= 24 * 30:
+            raise ValueError("la duración va de 0 (sin caducidad) a 720 horas")
         with self.lock:
             anterior, self.mando = self.mando, mando
+            self.asistente.mando_hasta_ms = (int(time.time() * 1000 + horas * 3600_000)
+                                             if horas and mando != "auto" else None)
             log.info("Mando: %s → %s", anterior, mando)
             hechas = []
             if mando != "pausa" and self.precios:
                 # Cubrir, salir o volver a automático se ejecuta ya, sin esperar a la vela.
                 hechas = self.decidir(forzar=mando in ("neutral", "fuera"), motivo=f"mando_{mando}")
             self.guardar()
-            return {"mando": self.mando, "operaciones": len(hechas)}
+            return {"mando": self.mando, "operaciones": len(hechas), "mando_hasta_ms": self.asistente.mando_hasta_ms}
 
     def cambiar_ajustes(self, cambios: dict) -> dict:
         limpio = config.validar_ajustes(cambios)
@@ -416,6 +450,14 @@ class Bot:
             log.info("Ajustes: %s", limpio)
             self.guardar()
             return {"ajustes": self.ajustes}
+
+    def poner_veto(self, simbolo: str, modo: Optional[str], horas: float = 0) -> dict:
+        """Veto del dueño sobre una moneda (congelar, cubrir, cerrar o quitarlo). Se aplica ya."""
+        with self.lock:
+            vetos = self.asistente.poner_veto(simbolo, modo, horas)
+            log.info("Veto %s: %s", simbolo, modo or "quitado")
+            hechas = self.decidir(motivo="veto") if self.precios and self.mando != "pausa" else []
+            return {"vetos": vetos, "operaciones": len(hechas)}
 
     def instantanea(self) -> dict:
         """Todo lo que enseña el panel."""
@@ -447,6 +489,8 @@ class Bot:
                 "utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "simulacion": True,
                 "mando": self.mando,
+                "mando_hasta_ms": self.asistente.mando_hasta_ms,
+                "vetos": self.asistente.vetos_activos(),
                 "salud": self.salud(),
                 "patrimonio": pat,
                 "capital_inicial": c.capital_inicial,

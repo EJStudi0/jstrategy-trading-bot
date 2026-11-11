@@ -1,5 +1,5 @@
 // El marco: cabecera con el estado del bot, cinta de precios y, en el móvil, la barra de abajo.
-import { Bitcoin, ChartCandlestick, ChartColumn, Clock, LayoutDashboard, Moon, SlidersHorizontal, Sun, SunMoon, TriangleAlert } from "lucide-react";
+import { BellRing, Bitcoin, ChartCandlestick, ChartColumn, Clock, LayoutDashboard, Moon, SlidersHorizontal, Sun, SunMoon, TriangleAlert } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Chip, PuntoEstado, cx } from "../componentes/ui";
 import { MiniLinea } from "../componentes/piezas";
@@ -14,8 +14,21 @@ export const VISTAS: { id: Prefs["vista"]; nombre: string; icono: ReactNode }[] 
   { id: "ganancias", nombre: "Ganancias", icono: <ChartColumn /> },
   { id: "mercado", nombre: "Mercado", icono: <ChartCandlestick /> },
   { id: "centinela", nombre: "Centinela", icono: <Bitcoin /> },
+  { id: "asistente", nombre: "Asistente", icono: <BellRing /> },
   { id: "mando", nombre: "Mando", icono: <SlidersHorizontal /> },
 ];
+
+/** Cuántas cosas nuevas hay en cada pestaña (hoy solo los avisos sin ver del asistente). */
+export type Contadores = Partial<Record<Prefs["vista"], number>>;
+
+function Contador({ n, className }: { n: number | undefined; className?: string }) {
+  if (!n) return null;
+  return (
+    <span className={cx("num grid h-4 min-w-4 place-items-center rounded-full bg-acento px-1 text-[10px] font-semibold leading-none text-white", className)}>
+      {n > 99 ? "99+" : n}<span className="sr-only"> sin ver</span>
+    </span>
+  );
+}
 
 export function useAhora(cada = 1000) {
   const [ahora, setAhora] = useState(Date.now());
@@ -28,8 +41,8 @@ export function useAhora(cada = 1000) {
 
 const SALUD = { ok: "Datos al día", viejo: "Datos con retraso", ciego: "Sin datos del mercado", arrancando: "Arrancando" };
 
-export function Encabezado({ e, sinConexion, vista, alIr, tema, alTema }: {
-  e: Estado | undefined; sinConexion: boolean; vista: Prefs["vista"]; alIr: (v: Prefs["vista"]) => void;
+export function Encabezado({ e, sinConexion, vista, alIr, tema, alTema, contadores = {} }: {
+  e: Estado | undefined; sinConexion: boolean; vista: Prefs["vista"]; alIr: (v: Prefs["vista"]) => void; contadores?: Contadores;
   tema: Prefs["tema"]; alTema: (t: Prefs["tema"]) => void;
 }) {
   const ahora = useAhora();
@@ -52,6 +65,7 @@ export function Encabezado({ e, sinConexion, vista, alIr, tema, alTema }: {
               className={cx("relative flex items-center gap-2 px-3 text-[13px] font-medium text-texto-3 transition-colors hover:text-texto [&>svg]:size-4",
                             vista === v.id && "text-texto")}>
               {v.icono}{v.nombre}
+              <Contador n={contadores[v.id]} />
               {vista === v.id && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-gradient-to-r from-acento to-acento-2" />}
             </button>
           ))}
@@ -107,16 +121,19 @@ export function Cinta({ e, m, alElegir }: { e: Estado | undefined; m: Mercado | 
   );
 }
 
-export function NavInferior({ vista, alIr }: { vista: Prefs["vista"]; alIr: (v: Prefs["vista"]) => void }) {
+export function NavInferior({ vista, alIr, contadores = {} }: {
+  vista: Prefs["vista"]; alIr: (v: Prefs["vista"]) => void; contadores?: Contadores;
+}) {
   return (
     <nav aria-label="Secciones"
-      className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-borde bg-fondo/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
+      className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-borde bg-fondo/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
       {VISTAS.map((v) => (
         <button key={v.id} type="button" onClick={() => alIr(v.id)} aria-current={vista === v.id ? "page" : undefined}
-          className={cx("relative flex h-15 flex-col items-center justify-center gap-1 text-[11px] font-medium text-texto-3 [&>svg]:size-5",
+          className={cx("relative flex h-15 min-w-0 flex-col items-center justify-center gap-1 text-[10.5px] font-medium text-texto-3 [&>svg]:size-5",
                         vista === v.id && "text-acento")}>
           {vista === v.id && <span className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-gradient-to-r from-acento to-acento-2" />}
           {v.icono}{v.nombre}
+          <Contador n={contadores[v.id]} className="absolute top-1.5 left-1/2 ml-1.5" />
         </button>
       ))}
     </nav>

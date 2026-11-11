@@ -204,7 +204,7 @@ def construir_app(bot, token: str, dir_centinela: Optional[str] = None):
                                      "caduca_en_s": CADUCIDAD_CONFIRMACION_S}, headers=sin_cache)
             pendiente.clear()
         try:
-            return JSONResponse(bot.poner_mando(pedido), headers=sin_cache)
+            return JSONResponse(bot.poner_mando(pedido, datos.get("horas") or 0), headers=sin_cache)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -214,6 +214,37 @@ def construir_app(bot, token: str, dir_centinela: Optional[str] = None):
         try:
             return JSONResponse(bot.cambiar_ajustes(datos), headers=sin_cache)
         except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    # ── Asistente: avisos de patrones, cuenta de operaciones a mano y vetos por moneda. Todo simulado.
+    @app.get("/api/asistente", dependencies=[Depends(exigir_token)])
+    def asistente():
+        with bot.lock:
+            return JSONResponse(bot.asistente.instantanea(dict(bot.precios)), headers=sin_cache)
+
+    @app.post("/api/asistente/{accion}", dependencies=[Depends(exigir_token)])
+    async def asistente_accion(accion: str, request: Request):
+        d = await cuerpo_json(request)
+        a = bot.asistente
+        try:
+            with bot.lock:
+                precios = dict(bot.precios)
+                if accion == "abrir":
+                    r = a.abrir(d.get("simbolo"), d.get("lado"), d.get("usdt"), precios, d.get("stop"),
+                                d.get("objetivo"), d.get("nota") or "", d.get("alerta"))
+                elif accion == "cerrar":
+                    r = a.cerrar(d.get("id"), precios, d.get("parte") or 1.0)
+                elif accion == "mover":
+                    r = a.mover(d.get("id"), precios, d.get("stop"), d.get("objetivo"))
+                elif accion == "veto":
+                    r = bot.poner_veto(d.get("simbolo"), d.get("modo"), d.get("horas") or 0)
+                elif accion == "vistas":
+                    a.marcar_vistas()
+                    r = {"ok": True}
+                else:
+                    raise HTTPException(status_code=404, detail="Acción desconocida")
+            return JSONResponse(r, headers=sin_cache)
+        except (ValueError, TypeError) as e:
             raise HTTPException(status_code=400, detail=str(e))
 
     # ── Centinela: el segundo bot. Corre en su proceso; aquí se lee su estado y se enciende o apaga.

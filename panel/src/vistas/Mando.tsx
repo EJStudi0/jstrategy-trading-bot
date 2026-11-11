@@ -1,30 +1,49 @@
 import * as Slider from "@radix-ui/react-slider";
-import { Check, LogOut, Monitor, Moon, Pause, Play, ShieldCheck, SlidersHorizontal, Sun, Tablet } from "lucide-react";
+import { Check, Clock, Hand, LogOut, Monitor, Moon, Pause, Play, ShieldCheck, SlidersHorizontal, Sun, Tablet } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useConfirmar } from "../componentes/Dialogo";
 import { Boton, Chip, Panel, Segmentado, colorSigno, cx } from "../componentes/ui";
 import { useCambiarAjustes, usePonerMando } from "../hooks/datos";
-import { MANDOS } from "../lib/derivados";
-import { cifra, dinero, pct, pctFraccion, signoDe } from "../lib/formato";
+import { DURACIONES, VETOS, hastaCuando, type Duracion } from "../lib/asistente";
+import { MANDOS, base } from "../lib/derivados";
+import { cifra, dinero, pct, pctFraccion, signoDe, valido } from "../lib/formato";
 import { alDia } from "../lib/niveles";
 import type { Prefs } from "../lib/prefs";
 import type { Estado, Mando as TMando } from "../tipos";
 
 const ICONOS: Record<TMando, ReactNode> = { auto: <Play />, pausa: <Pause />, neutral: <ShieldCheck />, fuera: <LogOut /> };
 
-function Modos({ e }: { e: Estado }) {
+/** Pausa y «cubrir todo» pueden llevar fecha de caducidad; salir a USDT y automático, no. */
+const conDuracion = (m: TMando) => m === "pausa" || m === "neutral";
+
+function Modos({ e, alIr }: { e: Estado; alIr: (v: Prefs["vista"]) => void }) {
   const confirmar = useConfirmar();
   const poner = usePonerMando();
+  const [duracion, setDuracion] = useState<Duracion>("0");
+  const horas = Number(duracion);
   const elegir = async (m: TMando) => {
-    if (m === e.mando || poner.isPending) return;
+    if (poner.isPending) return;
+    // El modo que ya está puesto solo se vuelve a mandar para cambiarle la duración.
+    const mismo = m === e.mando;
+    if (mismo && !conDuracion(m)) return;
+    const cuanto = !conDuracion(m) ? "" : horas
+      ? ` Dura ${horas} horas; después el bot vuelve solo a Automático.`
+      : " Sin caducidad: se queda así hasta que lo cambies tú.";
     const ok = await confirmar({
-      titulo: m === "fuera" ? "¿Salir a USDT?" : `¿Cambiar a «${MANDOS[m].nombre}»?`,
-      texto: MANDOS[m].confirma, si: m === "fuera" ? "Sí, salir a USDT" : "Cambiar", peligro: m === "fuera",
+      titulo: m === "fuera" ? "¿Salir a USDT?" : mismo ? `¿Cambiar cuánto dura «${MANDOS[m].nombre}»?` : `¿Cambiar a «${MANDOS[m].nombre}»?`,
+      texto: (mismo ? "" : MANDOS[m].confirma) + cuanto, si: m === "fuera" ? "Sí, salir a USDT" : "Cambiar", peligro: m === "fuera",
     });
-    if (ok) poner.mutate(m);
+    if (ok) poner.mutate({ mando: m, horas: conDuracion(m) ? horas : 0 });
   };
+  const vetos = Object.entries(e.vetos ?? {});
   return (
     <Panel titulo="Modo" icono={<Play />} acciones={<span className="text-xs text-texto-3">Se aplica al momento</span>}>
+      {valido(e.mando_hasta_ms) && e.mando !== "auto" && (
+        <p className="mb-3 flex items-center gap-2.5 rounded-lg border border-acento/30 bg-acento/10 px-3.5 py-2.5 text-[13px]" role="status">
+          <Clock className="size-4 shrink-0 text-acento" />
+          <span className="min-w-0 flex-1">«{MANDOS[e.mando].nombre}» es temporal: vuelve a Automático <span className="num font-semibold">{hastaCuando(e.mando_hasta_ms)}</span>.</span>
+        </p>
+      )}
       <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4" role="radiogroup" aria-label="Modo de operación">
         {(Object.keys(MANDOS) as TMando[]).map((m) => {
           const activo = e.mando === m;
@@ -46,6 +65,26 @@ function Modos({ e }: { e: Estado }) {
           );
         })}
       </div>
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-texto-2">
+        <span>Pausa y Cubrir todo duran</span>
+        <Segmentado etiqueta="Cuánto duran Pausa y Cubrir todo" valor={duracion} alCambiar={setDuracion}
+          opciones={DURACIONES.map((d) => ({ valor: d.valor, etiqueta: d.etiqueta }))} />
+        <span className="basis-full text-texto-3">
+          {horas ? `Pasadas ${horas} horas el bot vuelve solo a Automático.` : "Se quedan puestos hasta que los cambies tú."} Elige la duración y luego toca el modo.
+        </span>
+      </div>
+      {vetos.length > 0 && (
+        <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-aviso/30 bg-aviso/10 px-3.5 py-2.5 text-[13px]">
+          <Hand className="size-4 shrink-0 text-aviso" />
+          <span className="min-w-0 flex-1 basis-48 break-words">
+            {vetos.length === 1 ? "Hay una moneda con orden tuya" : `Hay ${vetos.length} monedas con orden tuya`}:{" "}
+            {vetos.map(([s, v]) => `${base(s)} (${VETOS[v.modo]?.nombre ?? v.modo})`).join(", ")}.
+          </span>
+          <button type="button" onClick={() => alIr("asistente")} className="font-semibold text-acento underline decoration-acento/40 underline-offset-2">
+            Verlas en Asistente
+          </button>
+        </p>
+      )}
       {poner.isError && <p role="alert" className="mt-3 text-sm text-baja">No se pudo: {(poner.error as Error).message}</p>}
     </Panel>
   );
@@ -158,12 +197,12 @@ function Aparato({ prefs, poner, alOlvidar }: { prefs: Prefs; poner: <K extends 
   );
 }
 
-export function Mando({ e, prefs, poner, alOlvidar }: {
-  e: Estado; prefs: Prefs; poner: <K extends keyof Prefs>(k: K, v: Prefs[K]) => void; alOlvidar: () => void;
+export function Mando({ e, prefs, poner, alOlvidar, alIr }: {
+  e: Estado; prefs: Prefs; alIr: (v: Prefs["vista"]) => void; poner: <K extends keyof Prefs>(k: K, v: Prefs[K]) => void; alOlvidar: () => void;
 }) {
   return (
     <div className="grid gap-3 sm:gap-4">
-      <Modos e={e} />
+      <Modos e={e} alIr={alIr} />
       <Niveles e={e} />
       <Aparato prefs={prefs} poner={poner} alOlvidar={alOlvidar} />
     </div>

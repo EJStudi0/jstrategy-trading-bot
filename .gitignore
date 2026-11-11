@@ -61,6 +61,7 @@ investigacion/salidas/
 # Estado del bot nuevo (simulación)
 estado_cartera.json
 estado_bot.json
+estado_asistente.json
 diario_operaciones.csv
 patrimonio_historico.csv
 .estado_*.tmp

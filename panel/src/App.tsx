@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { SinAcceso, fragmento, hayToken, olvidarToken, ponerToken } from "./api";
 import { ProveedorDeConfirmacion } from "./componentes/Dialogo";
-import { useCentinela, useCurva, useCurvaCentinela, useEstado, useGanancias, useGrafica, useMercado, useOperaciones } from "./hooks/datos";
+import { useAsistente, useCentinela, useCurva, useCurvaCentinela, useEstado, useGanancias, useGrafica, useMercado, useOperaciones } from "./hooks/datos";
 import { haceCuanto } from "./lib/formato";
 import { ponerPref, usePrefs, type Prefs } from "./lib/prefs";
 import { useTemaEfectivo } from "./lib/tema";
@@ -10,6 +10,7 @@ import { ZONA } from "./lib/tiempo";
 import { Acceso } from "./marco/Acceso";
 import { Marca } from "./marco/Marca";
 import { Avisos, Cinta, Encabezado, NavInferior, VISTAS, useAhora } from "./marco/Marco";
+import { Asistente } from "./vistas/Asistente";
 import { Centinela } from "./vistas/Centinela";
 import { Ganancias } from "./vistas/Ganancias";
 import { Mando } from "./vistas/Mando";
@@ -37,10 +38,11 @@ export function App() {
   const grafica = useGrafica(prefs.moneda, conToken && prefs.vista === "mercado");
   const centinela = useCentinela(conToken);
   const curvaCentinela = useCurvaCentinela(prefs.horas, conToken && prefs.vista === "centinela");
+  const asistente = useAsistente(conToken);
   const ahora = useAhora(5000);
 
   // Un 401 en cualquier petición devuelve a la pantalla del token.
-  const errores = [estado.error, ganancias.error, curva.error, mercado.error, operaciones.error, grafica.error, centinela.error];
+  const errores = [estado.error, ganancias.error, curva.error, mercado.error, operaciones.error, grafica.error, centinela.error, asistente.error];
   const sinAcceso = errores.find((x) => x instanceof SinAcceso) as SinAcceso | undefined;
   useEffect(() => {
     if (sinAcceso) {
@@ -56,12 +58,13 @@ export function App() {
   const e = estado.data;
   const irA = (v: Prefs["vista"]) => { poner("vista", v); window.scrollTo({ top: 0 }); };
   const verMoneda = (s: string) => { poner("moneda", s); irA("mercado"); };
+  const contadores = { asistente: asistente.data?.sin_ver ?? 0 };
   const sinConexion = estado.isError && !(estado.error instanceof SinAcceso);
 
   return (
     <ProveedorDeConfirmacion>
       <div className="min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0">
-        <Encabezado e={e} sinConexion={sinConexion} vista={prefs.vista} alIr={irA} tema={prefs.tema} alTema={(t) => poner("tema", t)} />
+        <Encabezado e={e} sinConexion={sinConexion} vista={prefs.vista} alIr={irA} tema={prefs.tema} alTema={(t) => poner("tema", t)} contadores={contadores} />
         <Cinta e={e} m={mercado.data} alElegir={verMoneda} />
         <main className="mx-auto grid max-w-[1680px] gap-3 px-3 py-3 sm:gap-4 sm:px-5 sm:py-5">
           {!e ? (
@@ -85,8 +88,9 @@ export function App() {
                 {prefs.vista === "centinela" && (
                   <Centinela c={centinela.data} curva={curvaCentinela.data} prefs={prefs} poner={poner} tema={tema} />
                 )}
+                {prefs.vista === "asistente" && <Asistente a={asistente.data} e={e} />}
                 {prefs.vista === "mando" && (
-                  <Mando e={e} prefs={prefs} poner={poner} alOlvidar={() => { olvidarToken(); qc.clear(); setConToken(false); }} />
+                  <Mando e={e} alIr={irA} prefs={prefs} poner={poner} alOlvidar={() => { olvidarToken(); qc.clear(); setConToken(false); }} />
                 )}
               </div>
             </>
@@ -102,7 +106,7 @@ export function App() {
             </span>
           </footer>
         </main>
-        <NavInferior vista={prefs.vista} alIr={irA} />
+        <NavInferior vista={prefs.vista} alIr={irA} contadores={contadores} />
       </div>
     </ProveedorDeConfirmacion>
   );

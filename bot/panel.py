@@ -34,7 +34,7 @@ from typing import Optional
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 
-from bot import config
+from bot import config, puente_centinela
 
 log = logging.getLogger("bot")
 # La página es una compilación de `panel/` (React + TypeScript, ver su README): `npm run build`
@@ -109,7 +109,8 @@ def _serie_patrimonio(ruta: str, maximo: int = 600, horas: int = 0) -> list:
     return puntos
 
 
-def construir_app(bot, token: str):
+def construir_app(bot, token: str, dir_centinela: Optional[str] = None):
+    dir_centinela = dir_centinela or puente_centinela.DIR_ESTADO
     # Los tipos de FastAPI se importan arriba, a nivel de módulo: con las anotaciones
     # diferidas, `Request` importado aquí dentro no se resuelve y FastAPI lo toma por
     # un parámetro de la URL (todas las rutas contestaban 422).
@@ -213,6 +214,27 @@ def construir_app(bot, token: str):
         try:
             return JSONResponse(bot.cambiar_ajustes(datos), headers=sin_cache)
         except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    # ── Centinela: el segundo bot. Corre en su proceso; aquí se lee su estado y se enciende o apaga.
+    @app.get("/api/centinela", dependencies=[Depends(exigir_token)])
+    def centinela():
+        return JSONResponse(puente_centinela.instantanea(dir_centinela), headers=sin_cache)
+
+    @app.get("/api/centinela/patrimonio", dependencies=[Depends(exigir_token)])
+    def centinela_patrimonio(horas: int = 0):
+        return JSONResponse(puente_centinela.curva(dir_centinela, horas=max(0, min(horas, 200_000))),
+                            headers=sin_cache)
+
+    @app.post("/api/centinela/interruptor", dependencies=[Depends(exigir_token)])
+    async def centinela_interruptor(request: Request):
+        datos = await cuerpo_json(request)
+        pedido = datos.get("encendido")
+        if not isinstance(pedido, bool):
+            raise HTTPException(status_code=400, detail="Se espera encendido: true o false")
+        try:
+            return JSONResponse(puente_centinela.poner_interruptor(pedido, dir_centinela), headers=sin_cache)
+        except (ValueError, OSError) as e:
             raise HTTPException(status_code=400, detail=str(e))
 
     # Al final, para que no tapen ninguna ruta de la API.

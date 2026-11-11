@@ -1,0 +1,25 @@
+# Copia de referencia de ~/.config/systemd/user/jstrategy-centinela.service (%h = carpeta personal)
+# Instalar:  cp despliegue/jstrategy-centinela.service ~/.config/systemd/user/ && systemctl --user daemon-reload
+#            systemctl --user enable --now jstrategy-centinela.service
+[Unit]
+Description=Centinela (simulación): Bitcoin al contado, tendencia
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=3600
+StartLimitBurst=20
+
+[Service]
+Type=simple
+WorkingDirectory=%h/proyectos/jstrategy
+Environment=PYTHONUNBUFFERED=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
+# Siempre `papel`: en este proyecto Centinela solo simula. Su registro va a logs/centinela.log
+# (rota solo). Encenderlo y apagarlo se hace desde el panel; esto solo lo mantiene vivo.
+ExecStart=%h/proyectos/jstrategy/.venv/bin/python -m centinela --config centinela.yaml papel
+Restart=on-failure
+RestartSec=30
+Nice=10
+StandardOutput=null
+StandardError=journal
+
+[Install]
+WantedBy=default.target

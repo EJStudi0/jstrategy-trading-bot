@@ -17,9 +17,17 @@ Al dueño se le habla en español, corto, sin nombres de ficheros ni de funcione
   atribución está en el pie). Versiones fijadas, con más de dos semanas publicadas.
 - `investigacion/` — simulador y estudios. `salidas/` y `datos_cache/` se regeneran y no van a git.
 - `tests/` — `.venv/bin/python -m pytest` (~40 s).
+- `centinela/` — **segundo bot** (añadido el 2026-11-11): solo Bitcoin, al contado, sin deuda, sigue la
+  tendencia. Proceso aparte (`jstrategy-centinela.service`, `python -m centinela --config centinela.yaml
+  papel`), cartera simulada propia; todo lo que escribe va a `centinela_vivo/` y `logs/` (fuera de git).
+  Sus pruebas, `centinela_pruebas/` (entran en el mismo `pytest`). El panel lo enseña en la sección
+  «Centinela» a través de `bot/puente_centinela.py`, que solo LEE su base de datos y pone o quita su
+  fichero `STOP` (apagar no vende). Los mandos de un bot no tocan al otro. El paquete trae un modo real
+  propio (pide configuración y un indicador explícito): aquí no se usa ni se le dan claves.
 - `01_…` a `13_…`, `panel_web.py`, `panel_static/` — el sistema anterior. No se ejecuta. No se
   arregla ni se borra sin que el dueño lo pida.
-- Servicio: `jstrategy-bot.service` (systemd de usuario). Copia en `despliegue/`.
+- Servicios: `jstrategy-bot.service` (Jorge y el panel) y `jstrategy-centinela.service` (systemd de
+  usuario). Copias en `despliegue/`.
 
 ## Reglas
 

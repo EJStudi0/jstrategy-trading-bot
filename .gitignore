@@ -67,3 +67,7 @@ patrimonio_historico.csv
 .tmp_*.json
 # La configuración real de logrotate lleva rutas absolutas de esta máquina (plantilla en despliegue/)
 /logrotate.conf
+
+# ── Centinela (segundo bot): lo que escribe al correr ────────────────────────
+centinela_vivo/
+logs/

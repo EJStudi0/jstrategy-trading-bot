@@ -1,0 +1,37 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Centinela (el bot de Bitcoin al contado) dentro de este proyecto.
+#  Corre aparte de Jorge, con su propia cartera simulada, y el panel lo enseña
+#  y lo enciende o apaga desde la sección «Centinela».
+#  Lo que no aparece aquí usa el valor validado en su backtest.
+# ─────────────────────────────────────────────────────────────────────────────
+
+perfil: equilibrado
+
+# Aquí solo simulación (regla 1 del proyecto). El servicio arranca siempre con `papel`.
+modo: papel
+capital_papel: 10000
+banda: 0.15
+
+ejecucion:
+  exchange: bitget
+  simbolo: BTC/USDT
+  # Comisión por lado de la cuenta de Bitget, leída con la clave del dueño el 2026-11-11.
+  comision: 0.001
+  deslizamiento: 0.0002
+
+riesgo:
+  enfriamiento_dias: 30
+  parada_desplome_sigmas: 0
+
+vivo:
+  retardo_s: 20
+  max_horas_datos_viejos: 3
+  horas_ciego_para_salir: 48
+
+# Todo lo que Centinela escribe va a su carpeta, que git ignora.
+directorios:
+  datos: centinela_vivo/data
+  estado: centinela_vivo/state
+  informes: centinela_vivo/reports
+
+telegram: false

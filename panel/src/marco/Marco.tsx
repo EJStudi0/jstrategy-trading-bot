@@ -1,5 +1,5 @@
 // El marco: cabecera con el estado del bot, cinta de precios y, en el móvil, la barra de abajo.
-import { ChartCandlestick, ChartColumn, Clock, LayoutDashboard, Moon, SlidersHorizontal, Sun, SunMoon, TriangleAlert } from "lucide-react";
+import { Bitcoin, ChartCandlestick, ChartColumn, Clock, LayoutDashboard, Moon, SlidersHorizontal, Sun, SunMoon, TriangleAlert } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Chip, PuntoEstado, cx } from "../componentes/ui";
 import { MiniLinea } from "../componentes/piezas";
@@ -13,6 +13,7 @@ export const VISTAS: { id: Prefs["vista"]; nombre: string; icono: ReactNode }[] 
   { id: "resumen", nombre: "Resumen", icono: <LayoutDashboard /> },
   { id: "ganancias", nombre: "Ganancias", icono: <ChartColumn /> },
   { id: "mercado", nombre: "Mercado", icono: <ChartCandlestick /> },
+  { id: "centinela", nombre: "Centinela", icono: <Bitcoin /> },
   { id: "mando", nombre: "Mando", icono: <SlidersHorizontal /> },
 ];
 
@@ -109,12 +110,12 @@ export function Cinta({ e, m, alElegir }: { e: Estado | undefined; m: Mercado | 
 export function NavInferior({ vista, alIr }: { vista: Prefs["vista"]; alIr: (v: Prefs["vista"]) => void }) {
   return (
     <nav aria-label="Secciones"
-      className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-borde bg-fondo/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
+      className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-borde bg-fondo/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
       {VISTAS.map((v) => (
         <button key={v.id} type="button" onClick={() => alIr(v.id)} aria-current={vista === v.id ? "page" : undefined}
           className={cx("relative flex h-15 flex-col items-center justify-center gap-1 text-[11px] font-medium text-texto-3 [&>svg]:size-5",
                         vista === v.id && "text-acento")}>
-          {vista === v.id && <span className="absolute inset-x-6 top-0 h-0.5 rounded-full bg-gradient-to-r from-acento to-acento-2" />}
+          {vista === v.id && <span className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-gradient-to-r from-acento to-acento-2" />}
           {v.icono}{v.nombre}
         </button>
       ))}

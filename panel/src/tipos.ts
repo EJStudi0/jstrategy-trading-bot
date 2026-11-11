@@ -179,3 +179,34 @@ export interface Operacion {
   usdt: string;
   patrimonio: string;
 }
+
+/** Centinela: el segundo bot (Bitcoin al contado), que corre en su propio proceso. */
+export interface Centinela {
+  instalado: boolean;
+  encendido: boolean;
+  en_marcha: boolean;
+  modo: string;
+  latido_utc?: string | null;
+  proxima_decision_utc?: string | null;
+  capital?: number | null;
+  patrimonio?: number | null;
+  ganancia?: number | null;
+  ganancia_pct?: number | null;
+  caida_pct?: number | null;
+  precio?: number | null;
+  peso?: number | null;
+  objetivo?: number | null;
+  btc?: number | null;
+  efectivo?: number | null;
+  regimen?: string;
+  accion?: string;
+  notas?: string[];
+  explicacion?: string[];
+  vela?: string | null;
+  horas_retraso?: number | null;
+  fuente?: string;
+  cortafuegos_hasta_utc?: string | null;
+  n_operaciones?: number;
+  operaciones?: { utc: string; lado: string; cantidad: number; precio: number; comision: number; motivo: string }[];
+  avisos?: { utc: string; nivel: string; texto: string }[];
+}

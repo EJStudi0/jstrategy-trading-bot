@@ -3,7 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { ZONA } from "../lib/tiempo";
-import type { Estado, Ganancias, Grafica, Mando, Mercado, Operacion, PuntoCurva } from "../tipos";
+import type { Centinela, Estado, Ganancias, Grafica, Mando, Mercado, Operacion, PuntoCurva } from "../tipos";
 
 const S = 1000;
 
@@ -42,6 +42,18 @@ export const useGrafica = (simbolo: string, activo: boolean) =>
     enabled: activo,
   });
 
+export const useCentinela = (activo: boolean) =>
+  useQuery({ queryKey: ["centinela"], queryFn: () => api<Centinela>("/api/centinela"), refetchInterval: 30 * S, enabled: activo });
+
+export const useCurvaCentinela = (horas: number, activo: boolean) =>
+  useQuery({
+    queryKey: ["centinela-curva", horas],
+    queryFn: () => api<PuntoCurva[]>("/api/centinela/patrimonio?horas=" + horas),
+    refetchInterval: 5 * 60 * S,
+    placeholderData: keepPreviousData,
+    enabled: activo,
+  });
+
 function useRefrescarTodo() {
   const qc = useQueryClient();
   return () => qc.invalidateQueries();
@@ -64,6 +76,15 @@ export function useCambiarAjustes() {
   const refrescar = useRefrescarTodo();
   return useMutation({
     mutationFn: (ajustes: Record<string, number>) => api<{ ajustes: Record<string, number> }>("/api/ajustes", ajustes),
+    onSettled: refrescar,
+  });
+}
+
+/** Encender o apagar Centinela. Apagado no vende: deja de operar y conserva lo que tenga. */
+export function usePonerCentinela() {
+  const refrescar = useRefrescarTodo();
+  return useMutation({
+    mutationFn: (encendido: boolean) => api<{ encendido: boolean }>("/api/centinela/interruptor", { encendido }),
     onSettled: refrescar,
   });
 }

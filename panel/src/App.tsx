@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { SinAcceso, fragmento, hayToken, olvidarToken, ponerToken } from "./api";
 import { ProveedorDeConfirmacion } from "./componentes/Dialogo";
-import { useCurva, useEstado, useGanancias, useGrafica, useMercado, useOperaciones } from "./hooks/datos";
+import { useCentinela, useCurva, useCurvaCentinela, useEstado, useGanancias, useGrafica, useMercado, useOperaciones } from "./hooks/datos";
 import { haceCuanto } from "./lib/formato";
 import { ponerPref, usePrefs, type Prefs } from "./lib/prefs";
 import { useTemaEfectivo } from "./lib/tema";
@@ -10,6 +10,7 @@ import { ZONA } from "./lib/tiempo";
 import { Acceso } from "./marco/Acceso";
 import { Marca } from "./marco/Marca";
 import { Avisos, Cinta, Encabezado, NavInferior, VISTAS, useAhora } from "./marco/Marco";
+import { Centinela } from "./vistas/Centinela";
 import { Ganancias } from "./vistas/Ganancias";
 import { Mando } from "./vistas/Mando";
 import { Mercado } from "./vistas/Mercado";
@@ -34,10 +35,12 @@ export function App() {
   const mercado = useMercado(conToken);
   const operaciones = useOperaciones(conToken && prefs.vista === "mercado");
   const grafica = useGrafica(prefs.moneda, conToken && prefs.vista === "mercado");
+  const centinela = useCentinela(conToken);
+  const curvaCentinela = useCurvaCentinela(prefs.horas, conToken && prefs.vista === "centinela");
   const ahora = useAhora(5000);
 
   // Un 401 en cualquier petición devuelve a la pantalla del token.
-  const errores = [estado.error, ganancias.error, curva.error, mercado.error, operaciones.error, grafica.error];
+  const errores = [estado.error, ganancias.error, curva.error, mercado.error, operaciones.error, grafica.error, centinela.error];
   const sinAcceso = errores.find((x) => x instanceof SinAcceso) as SinAcceso | undefined;
   useEffect(() => {
     if (sinAcceso) {
@@ -78,6 +81,9 @@ export function App() {
                 {prefs.vista === "ganancias" && <Ganancias e={e} g={ganancias.data} prefs={prefs} poner={poner} tema={tema} />}
                 {prefs.vista === "mercado" && (
                   <Mercado e={e} m={mercado.data} g={grafica.data} ops={operaciones.data} prefs={prefs} poner={poner} tema={tema} />
+                )}
+                {prefs.vista === "centinela" && (
+                  <Centinela c={centinela.data} curva={curvaCentinela.data} prefs={prefs} poner={poner} tema={tema} />
                 )}
                 {prefs.vista === "mando" && (
                   <Mando e={e} prefs={prefs} poner={poner} alOlvidar={() => { olvidarToken(); qc.clear(); setConToken(false); }} />

@@ -51,3 +51,15 @@ describe("lo medido en dólares", () => {
     expect(aniosParaDoblar(8.2)).toBeCloseTo(8.8, 1);
   });
 });
+
+import { mediaFiable } from "./derivados";
+
+describe("media por día", () => {
+  it("no se enseña hasta tener 7 días completos", () => {
+    expect(mediaFiable({ media_dia: -6.75, dias_completos: 1 })).toBeNull();
+    expect(mediaFiable({ media_dia: 0.5, dias_completos: 6 })).toBeNull();
+    expect(mediaFiable({ media_dia: 0.5, dias_completos: 7 })).toBe(0.5);
+    expect(mediaFiable({ media_dia: null, dias_completos: 9 })).toBeNull();
+    expect(mediaFiable(undefined)).toBeNull();
+  });
+});

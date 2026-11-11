@@ -60,3 +60,10 @@ export function frenadaPorBtc(e: Estado, m: Moneda): boolean {
   const btc = e.monedas[0];
   return m.simbolo !== btc?.simbolo && (m.puntuacion ?? 0) > 0 && !((btc?.puntuacion ?? 0) > 0);
 }
+
+// Con pocos días la media engaña (el primero carga las comisiones del arranque): no se enseña hasta tener estos.
+export const MIN_DIAS_MEDIA = 7;
+export const mediaFiable = (r: { media_dia: number | null; dias_completos: number } | null | undefined): number | null =>
+  r && r.dias_completos >= MIN_DIAS_MEDIA && r.media_dia !== null && Number.isFinite(r.media_dia) ? r.media_dia : null;
+export const faltaParaMedia = (dias: number) =>
+  `se calcula con ${MIN_DIAS_MEDIA} días · lleva ${dias}`;

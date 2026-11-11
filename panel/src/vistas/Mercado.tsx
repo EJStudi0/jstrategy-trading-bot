@@ -96,44 +96,49 @@ function Detalle({ e, mo, m }: { e: Estado; mo: Moneda; m: TM | undefined }) {
   );
 }
 
+// En el teléfono solo caben moneda, base, cubierta y resultado del corto; el resto, desde tableta.
+const EN_MOVIL = new Set([0, 2, 4, 7]);
+const celda = (i: number, extra?: string | false) =>
+  cx("px-2 py-2.5 sm:px-4", !EN_MOVIL.has(i) && "hidden md:table-cell", i > 0 && i < 8 && "text-right", extra);
+
 function Posiciones({ e, alElegir }: { e: Estado; alElegir: (s: string) => void }) {
   const total = e.monedas.reduce((s, m) => s + m.no_realizado_perp, 0);
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[760px] text-[13px]">
+      <table className="w-full text-[13px] md:min-w-[760px]">
         <thead>
           <tr className="text-left text-[11px] text-texto-3">
             {["Moneda", "Precio", "Base", "Cobertura", "Cubierta", "Neto", "Entrada corto", "Resultado corto", "Tendencia"].map((t, i) => (
-              <th key={t} className={cx("px-4 py-2.5 font-medium", i > 0 && i < 8 && "text-right")}>{t}</th>
+              <th key={t} className={celda(i, "font-medium")}>{t}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {e.monedas.map((m) => (
             <tr key={m.simbolo} className="cursor-pointer border-t border-borde hover:bg-panel-2/60" onClick={() => alElegir(m.simbolo)}>
-              <td className="px-4 py-2.5"><span className="font-semibold">{base(m.simbolo)}</span><span className="ml-2 text-[11px] text-texto-3">{nombre(m.simbolo)}</span></td>
-              <td className="num px-4 py-2.5 text-right">{precio(m.precio)}</td>
-              <td className="num px-4 py-2.5 text-right">{dinero(m.valor_base, { decimales: 0 })}</td>
-              <td className="num px-4 py-2.5 text-right">{dinero(m.valor_cobertura, { decimales: 0 })}</td>
-              <td className="px-4 py-2.5"><div className="ml-auto w-20"><BarraCobertura cubierta={cubiertaDe(m)} /></div></td>
-              <td className="num px-4 py-2.5 text-right">{pctFraccion(m.neto, 1)}</td>
-              <td className="num px-4 py-2.5 text-right text-texto-2">{precio(m.entrada_perp)}</td>
-              <td className="px-4 py-2.5 text-right"><Cifra valor={m.no_realizado_perp} signo colorear /></td>
-              <td className="px-4 py-2.5"><div className="w-36"><Medidor valor={m.puntuacion} /></div></td>
+              <td className={celda(0)}><span className="font-semibold">{base(m.simbolo)}</span><span className="ml-2 hidden text-[11px] text-texto-3 sm:inline">{nombre(m.simbolo)}</span></td>
+              <td className={celda(1, "num")}>{precio(m.precio)}</td>
+              <td className={celda(2, "num")}>{dinero(m.valor_base, { decimales: 0 })}</td>
+              <td className={celda(3, "num")}>{dinero(m.valor_cobertura, { decimales: 0 })}</td>
+              <td className={celda(4)}><div className="ml-auto w-16 sm:w-20"><BarraCobertura cubierta={cubiertaDe(m)} /></div></td>
+              <td className={celda(5, "num")}>{pctFraccion(m.neto, 1)}</td>
+              <td className={celda(6, "num text-texto-2")}>{precio(m.entrada_perp)}</td>
+              <td className={celda(7)}><Cifra valor={m.no_realizado_perp} signo colorear /></td>
+              <td className={celda(8)}><div className="w-36"><Medidor valor={m.puntuacion} /></div></td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr className="border-t border-borde-2 text-[13px]">
-            <td className="px-4 py-2.5 font-semibold">Total</td>
-            <td />
-            <td className="num px-4 py-2.5 text-right font-semibold">{dinero(e.valor_base, { decimales: 0 })}</td>
-            <td className="num px-4 py-2.5 text-right font-semibold">{dinero(e.monedas.reduce((s, m) => s + m.valor_cobertura, 0), { decimales: 0 })}</td>
-            <td />
-            <td className="num px-4 py-2.5 text-right font-semibold">{pctFraccion(e.exposicion_neta, 1)}</td>
-            <td />
-            <td className="px-4 py-2.5 text-right font-semibold"><Cifra valor={total} signo colorear /></td>
-            <td />
+            <td className={celda(0, "font-semibold")}>Total</td>
+            <td className={celda(1)} />
+            <td className={celda(2, "num font-semibold")}>{dinero(e.valor_base, { decimales: 0 })}</td>
+            <td className={celda(3, "num font-semibold")}>{dinero(e.monedas.reduce((s, m) => s + m.valor_cobertura, 0), { decimales: 0 })}</td>
+            <td className={celda(4)} />
+            <td className={celda(5, "num font-semibold")}>{pctFraccion(e.exposicion_neta, 1)}</td>
+            <td className={celda(6)} />
+            <td className={celda(7, "font-semibold")}><Cifra valor={total} signo colorear /></td>
+            <td className={celda(8)} />
           </tr>
         </tfoot>
       </table>

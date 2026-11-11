@@ -4,7 +4,7 @@ import { BarraCobertura, BarraPartes, Medidor, MiniBarras, MiniLinea, etiquetaTe
 import { Chip, Cifra, Interruptor, Panel, Segmentado, Stat, colorSigno, cx } from "../componentes/ui";
 import { GraficaPatrimonio, type PuntoP } from "../graficas/GraficaPatrimonio";
 import { useAhora } from "../marco/Marco";
-import { MANDOS, base, cubiertaDe, frase, frenadaPorBtc, nivelActual, nombre, partesCartera } from "../lib/derivados";
+import { MANDOS, base, cubiertaDe, faltaParaMedia, frase, frenadaPorBtc, mediaFiable, nivelActual, nombre, partesCartera } from "../lib/derivados";
 import { cifra, claveDia, cuando, dia, dinero, duracion, mesLargo, fechaLocal, pctFraccion, precio, signoDe, valido } from "../lib/formato";
 import { alDia } from "../lib/niveles";
 import type { Prefs } from "../lib/prefs";
@@ -21,6 +21,7 @@ function diasDesde(g: Ganancias | undefined, desde: string): (number | null)[] {
 
 export function StatsGanancia({ g, conMedia = true, curvaHoy }: { g: Ganancias | undefined; conMedia?: boolean; curvaHoy?: number[] }) {
   const r = g?.resumen;
+  const media = mediaFiable(r);
   const hace30 = (() => { const d = fechaLocal(g?.hoy_fecha ?? claveDia(new Date())); d.setDate(d.getDate() - 29); return claveDia(d); })();
   const fin = r?.hoy && valido(r.hoy.financiacion) ? `${dinero(r.hoy.financiacion, { signo: true })} de financiación` : "";
   const pctTxt = (x: { pct: number } | null | undefined) => (x ? `${cifra(x.pct, 2, true)} %` : "");
@@ -36,9 +37,9 @@ export function StatsGanancia({ g, conMedia = true, curvaHoy }: { g: Ganancias |
             sub={r?.mes ? `${pctTxt(r.mes)} · ${mesLargo(fechaLocal(r.mes.clave)).split(" ")[0]}` : ""}
             extra={r?.mes ? <MiniBarras valores={diasDesde(g, r.mes.clave + "-01")} /> : undefined} />
       {conMedia && (
-        <Stat rotulo="Media por día" valor={valido(r?.media_dia) ? dinero(r.media_dia, { signo: true }) : "—"} signo={signoDe(r?.media_dia)}
-              sub={r && r.dias_completos ? `${r.dias_completos} ${r.dias_completos === 1 ? "día completo" : "días completos"}${r.dias_completos < 7 ? " · aún pocos" : ""}` : "Hace falta un día completo"}
-              extra={g?.dias.length && r?.dias_completos ? <MiniBarras valores={diasDesde(g, hace30 < g.dias[0].fecha ? g.dias[0].fecha : hace30)} /> : undefined} />
+        <Stat rotulo="Media por día" valor={media !== null ? dinero(media, { signo: true }) : "—"} signo={signoDe(media)}
+              sub={media !== null ? `${r!.dias_completos} días completos` : faltaParaMedia(r?.dias_completos ?? 0)}
+              extra={g?.dias.length && media !== null ?<MiniBarras valores={diasDesde(g, hace30 < g.dias[0].fecha ? g.dias[0].fecha : hace30)} /> : undefined} />
       )}
     </>
   );

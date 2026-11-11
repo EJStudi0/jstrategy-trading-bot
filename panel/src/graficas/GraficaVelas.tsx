@@ -86,6 +86,8 @@ export function GraficaVelas({ g, reloj, canal, marcas, tema, alto = 520 }: {
     const se = s.current;
     if (!ch || !g || !se.velas || !hay) return;
     const c = colores();
+    // En pantallas estrechas los textos de las marcas y de «ahora» se cortan o se pisan: solo la forma.
+    const estrecha = (caja.current?.clientWidth ?? 1000) < 640;
     se.velas.setData(barras.map((b) => ({ time: b.tl, open: b.o, high: b.h, low: b.l, close: b.c })));
     const linea = (serie: (number | null)[] | undefined) =>
       barras.map((b) => (valido(serie?.[b.i]) ? { time: b.tl, value: serie![b.i] as number } : { time: b.tl }));
@@ -119,13 +121,13 @@ export function GraficaVelas({ g, reloj, canal, marcas, tema, alto = 520 }: {
     };
     const lista: SeriesMarkerBar<Time>[] = [...grupos.values()].sort((a, b) => a.t - b.t).map((x) => {
       const e = ESTILO[x.tipo];
-      return { time: x.t, position: e.position, shape: e.shape, color: e.color, text: `${e.texto} ${cifra(x.nocional, 0)} $`, size: 1 };
+      return { time: x.t, position: e.position, shape: e.shape, color: e.color, text: estrecha ? undefined : `${e.texto} ${cifra(x.nocional, 0)} $`, size: 1 };
     });
     se.marcas?.setMarkers(lista);
     if (valido(g.precio)) {
-      if (se.ahora) se.ahora.applyOptions({ price: g.precio });
+      if (se.ahora) se.ahora.applyOptions({ price: g.precio, title: estrecha ? "" : "ahora" });
       else se.ahora = se.velas.createPriceLine({ price: g.precio, color: c.acento, lineWidth: 1, lineStyle: LineStyle.Dotted,
-                                                 axisLabelVisible: true, title: "ahora" });
+                                                 axisLabelVisible: true, title: estrecha ? "" : "ahora" });
     }
     if (ultimoSimbolo.current !== g.simbolo) {
       ultimoSimbolo.current = g.simbolo;
@@ -147,7 +149,7 @@ export function GraficaVelas({ g, reloj, canal, marcas, tema, alto = 520 }: {
 
   return (
     <div className="relative" style={{ height: alto }}>
-      <div className="pointer-events-none absolute top-2 left-3 z-10 grid gap-1 text-[11px] sm:text-xs">
+      <div className="pointer-events-none absolute top-2 right-[76px] left-3 z-10 grid gap-1 text-[11px] sm:text-xs">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
           <span className="font-semibold text-texto">{g.simbolo.replace(/USDT$/, "")}<span className="text-texto-3">/USDT · 4h</span></span>
           <span className="num text-texto-3">{textoMomento(b.tl)}</span>

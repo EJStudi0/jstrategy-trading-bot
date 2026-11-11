@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { Boton, Chip, Panel, Segmentado, Stat, colorSigno, cx } from "../componentes/ui";
 import { Calendario } from "../graficas/Calendario";
 import { GraficaDias, type Barra } from "../graficas/GraficaDias";
-import { nivelActual } from "../lib/derivados";
+import { faltaParaMedia, mediaFiable, nivelActual } from "../lib/derivados";
 import { cifra, claveDia, dia, diaSemana, diaSemanaCorto, dinero, fechaLocal, mayuscula, mesLargo, pct, signoDe, valido } from "../lib/formato";
 import { alDia, aniosParaDoblar, diasDelAnio } from "../lib/niveles";
 import type { Prefs } from "../lib/prefs";
@@ -34,7 +34,7 @@ function Origen({ m, titulo }: { m: Grupo | undefined; titulo: string }) {
     <div key={nombreF} className={cx("grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto] items-center gap-3", total && "border-t border-borde pt-3")}>
       <div className="min-w-0">
         <p className={cx("text-[13px]", total ? "font-semibold" : "text-texto")}>{nombreF}</p>
-        {nota && <p className="truncate text-[11px] text-texto-3">{nota}</p>}
+        {nota && <p className="text-[11px] leading-snug text-texto-3">{nota}</p>}
       </div>
       <div className="relative h-2.5">
         <div className="absolute inset-y-[-4px] left-1/2 w-px bg-borde-2" />
@@ -55,6 +55,7 @@ function Origen({ m, titulo }: { m: Grupo | undefined; titulo: string }) {
 function LoMedido({ e, g }: { e: Estado; g: TG }) {
   const n = nivelActual(e);
   const r = g.resumen;
+  const media = mediaFiable(r);
   const ref = n ? alDia(n.anual_pct, e.patrimonio) : null;
   const hasta = e.niveles_periodo?.hasta ?? "2026-11-09";
   return (
@@ -67,8 +68,8 @@ function LoMedido({ e, g }: { e: Estado; g: TG }) {
         </div>
         <div className="rounded-lg border border-borde bg-panel-2/70 p-3">
           <p className="rotulo">Real, al día</p>
-          <p className={cx("num mt-1.5 text-xl font-semibold", colorSigno(signoDe(r.media_dia)))}>{valido(r.media_dia) ? dinero(r.media_dia, { signo: true }) : "—"}</p>
-          <p className="mt-1 text-[11px] text-texto-3">{r.dias_completos ? `${r.dias_completos} días · ${r.dias_positivos} en positivo` : "aún sin días completos"}</p>
+          <p className={cx("num mt-1.5 text-xl font-semibold", colorSigno(signoDe(media)))}>{media !== null ? dinero(media, { signo: true }) : "—"}</p>
+          <p className="mt-1 text-[11px] text-texto-3">{media !== null ? `${r.dias_completos} días · ${r.dias_positivos} en positivo` : faltaParaMedia(r.dias_completos)}</p>
         </div>
       </div>
       {n && (
@@ -152,8 +153,8 @@ export function Ganancias({ e, g, prefs, poner, tema }: {
               sub={`${cifra(r.total.pct, 2, true)} % · desde el ${dia(g.inicio_utc)}`} />
         <Stat rotulo="Días en positivo" valor={`${r.dias_positivos} de ${r.dias_completos}`}
               sub={r.racha.dias ? `racha: ${r.racha.dias} ${r.racha.dias === 1 ? "día" : "días"} ${r.racha.signo > 0 ? "ganando" : r.racha.signo < 0 ? "perdiendo" : "planos"}` : "sin días completos"} />
-        <Stat rotulo="Media por día" valor={valido(r.media_dia) ? dinero(r.media_dia, { signo: true }) : "—"} signo={signoDe(r.media_dia)}
-              sub={r.mejor_dia ? `mejor ${dia(fechaLocal(r.mejor_dia.fecha))}: ${dinero(r.mejor_dia.ganancia, { signo: true })}` : "hace falta un día completo"} />
+        <Stat rotulo="Media por día" valor={mediaFiable(r) !== null ? dinero(r.media_dia, { signo: true }) : "—"} signo={signoDe(mediaFiable(r))}
+              sub={mediaFiable(r) === null ? faltaParaMedia(r.dias_completos) : r.mejor_dia ?`mejor ${dia(fechaLocal(r.mejor_dia.fecha))}: ${dinero(r.mejor_dia.ganancia, { signo: true })}` : "hace falta un día completo"} />
       </div>
 
       <Panel titulo="Ganancia por día" icono={<ChartColumn />} className="col-span-12 xl:col-span-8" cuerpo="p-0"
@@ -196,11 +197,11 @@ export function Ganancias({ e, g, prefs, poner, tema }: {
         </Panel>
         <Panel titulo="Por mes" icono={<Table2 />} cuerpo="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px] text-[13px] whitespace-nowrap">
+            <table className="w-full text-[13px] whitespace-nowrap sm:min-w-[420px]">
               <thead>
                 <tr className="text-left text-[11px] text-texto-3">
                   {["Mes", "Ganancia", "", "%", "Días +"].map((t, i) => (
-                    <th key={i} className={cx("px-4 py-2.5 font-medium", i > 0 && i !== 2 && "text-right")}>{t}</th>
+                    <th key={i} className={cx("px-2 py-2.5 font-medium sm:px-4", i > 0 && i !== 2 && "text-right", i === 2 && "hidden sm:table-cell")}>{t}</th>
                   ))}
                 </tr>
               </thead>
@@ -209,17 +210,17 @@ export function Ganancias({ e, g, prefs, poner, tema }: {
                   const tope = Math.max(0.01, ...g.meses.map((x) => Math.abs(x.ganancia)));
                   return [...g.meses].reverse().map((x) => (
                     <tr key={x.clave} className="border-t border-borde hover:bg-panel-2/60" title={valido(x.financiacion) ? `financiación ${cifra(x.financiacion, 2, true)} · comisiones ${cifra(-(x.comisiones ?? 0), 2, true)} · mejor día ${dia(fechaLocal(x.mejor.fecha))} ${cifra(x.mejor.ganancia, 2, true)}` : undefined}>
-                      <td className="px-4 py-2.5 font-medium">{mayuscula(mesLargo(fechaLocal(x.clave + "-01")))}{x.clave === hoy.slice(0, 7) && <span className="ml-2 text-[11px] text-texto-3">en curso</span>}</td>
-                      <td className={cx("num px-4 py-2.5 text-right font-semibold", colorSigno(signoDe(x.ganancia)))}>{dinero(x.ganancia, { signo: true })}</td>
-                      <td className="w-28 px-2 py-2.5">
+                      <td className="px-2 py-2.5 font-medium sm:px-4">{mayuscula(mesLargo(fechaLocal(x.clave + "-01")))}{x.clave === hoy.slice(0, 7) && <span className="block text-[11px] text-texto-3 sm:ml-2 sm:inline">en curso</span>}</td>
+                      <td className={cx("num px-2 py-2.5 text-right font-semibold sm:px-4", colorSigno(signoDe(x.ganancia)))}>{dinero(x.ganancia, { signo: true })}</td>
+                      <td className="hidden w-28 px-2 py-2.5 sm:table-cell">
                         <div className="relative h-2">
                           <div className="absolute inset-y-[-3px] left-1/2 w-px bg-borde-2" />
                           <div className={cx("absolute inset-y-0", x.ganancia >= 0 ? "left-1/2 rounded-r bg-sube-marca" : "right-1/2 rounded-l bg-baja-marca")}
                                style={{ width: `${(Math.abs(x.ganancia) / tope) * 50}%` }} />
                         </div>
                       </td>
-                      <td className="num px-4 py-2.5 text-right text-texto-2">{cifra(x.pct, 2, true)} %</td>
-                      <td className="num px-4 py-2.5 text-right">{x.dias_positivos}/{x.dias}</td>
+                      <td className="num px-2 py-2.5 text-right text-texto-2 sm:px-4">{cifra(x.pct, 2, true)} %</td>
+                      <td className="num px-2 py-2.5 text-right sm:px-4">{x.dias_positivos}/{x.dias}</td>
                     </tr>
                   ));
                 })()}

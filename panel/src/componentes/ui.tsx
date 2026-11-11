@@ -62,7 +62,7 @@ export function Stat({ rotulo, valor, sub, signo, icono, className, destacado, e
       <div className={cx("num truncate text-[22px] font-semibold leading-none tracking-tight sm:text-2xl", colorSigno(signo ?? ""))}>
         {valor}
       </div>
-      {sub !== undefined && <div className="min-h-4 truncate text-xs text-texto-3">{sub}</div>}
+      {sub !== undefined && <div className="min-h-4 text-xs leading-snug break-words text-texto-3">{sub}</div>}
       {extra && <div className="mt-auto pt-1">{extra}</div>}
     </div>
   );

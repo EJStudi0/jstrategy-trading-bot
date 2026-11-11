@@ -71,3 +71,6 @@ patrimonio_historico.csv
 # ── Centinela (segundo bot): lo que escribe al correr ────────────────────────
 centinela_vivo/
 logs/
+
+# Lectura del material de Jorge (nombres de gente del grupo de Telegram): fuera del repo público
+investigacion/material_jorge/

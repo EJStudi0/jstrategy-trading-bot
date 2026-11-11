@@ -54,3 +54,12 @@ El 5 % de las operaciones aporta más que el total: depende de pocas ganadoras g
 
 **Criterio, fijado ahora**: pasa si en 2024+ da ≥ +0,10 R por operación y la cuenta gana con caída no peor
 que −40 %. Si no, se descarta y no se retoca.
+
+## PRUEBA ÚNICA (2026-11-11, `intradia_prueba.py`) — NO PASA
+2024-01 a 2026-11, la versión fijada sin tocar: 1 333 operaciones, acierto 17,6 %, **+0,045 R** por operación
+(criterio: ≥ +0,10). Cuenta: +11,5 % anual, caída máxima −32,5 %, 47 % de meses en positivo, peor mes −12,4 %.
+Por año: 2024 +0,14 R · 2025 −0,26 R · 2026 +0,33 R. Largos +0,48 R, cortos −0,26 R.
+Gana algo, pero menos de lo exigido y con una caída que no compensa: **descartada tal cual**.
+Aviso: «solo largos» salía mejor también en diseño (+0,49 frente a +0,08), pero se fijó con los dos lados.
+Quedarse ahora solo con los largos sería ajustar mirando la prueba; si alguna vez se estudia, su prueba
+honrada es el futuro (demo o datos nuevos), no estos mismos años.

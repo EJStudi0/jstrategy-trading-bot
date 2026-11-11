@@ -327,3 +327,13 @@ def cartera(df: pd.DataFrame, riesgo=0.005, palanca_max=3.0, simultaneas=3) -> p
     for x in abiertas:
         capital += x[1]; curva[x[0]] = capital
     return pd.Series(curva).sort_index()
+
+
+def medir(df: pd.DataFrame, riesgo=0.005, palanca_max=3.0, simultaneas=4) -> dict:
+    """La cuenta compuesta en cuatro números: crecimiento anual, caída máxima, meses en positivo y peor mes."""
+    dia = cartera(df, riesgo, palanca_max, simultaneas).resample("1D").last().ffill()
+    mes = dia.resample("ME").last().pct_change().dropna()
+    anios = (dia.index[-1] - dia.index[0]).days / 365.25
+    return {"cagr": round(100 * (dia.iloc[-1] ** (1 / anios) - 1), 1),
+            "caida": round(100 * (dia / dia.cummax() - 1).min(), 1),
+            "meses+": round(100 * (mes > 0).mean()), "peor_mes": round(100 * mes.min(), 1)}

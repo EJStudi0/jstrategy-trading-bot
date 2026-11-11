@@ -17,14 +17,14 @@ function Encendido({ c }: { c: TCentinela }) {
     if (poner.isPending) return;
     const ok = await confirmar(c.encendido
       ? { titulo: "¿Apagar Centinela?", texto: "Deja de comprar y vender. No vende lo que tenga: conserva la posición tal cual hasta que lo enciendas. Jorge no se toca.", si: "Apagar" }
-      : { titulo: "¿Encender Centinela?", texto: "Vuelve a operar en su próxima decisión (al cierre de cada hora), con dinero simulado. Jorge no se toca.", si: "Encender" });
+      : { titulo: "¿Encender Centinela?", texto: "Vuelve a operar en su próxima decisión (al cierre de cada hora), con dinero ficticio. Jorge no se toca.", si: "Encender" });
     if (ok) poner.mutate(!c.encendido);
   };
   const estado = !c.en_marcha ? "error" : c.encendido ? "ok" : "viejo";
   const texto = !c.en_marcha ? "Su proceso no está corriendo" : c.encendido ? "Encendido y operando" : "Apagado: no opera";
   return (
     <Panel titulo="Centinela" icono={<Bitcoin />} className="col-span-12 xl:col-span-4"
-      acciones={<Chip tono="acento">SIMULACIÓN</Chip>}>
+      acciones={<Chip tono="acento">{c.modo === "real-demo" ? "DEMO BITGET" : "SIMULACIÓN"}</Chip>}>
       <div className="grid gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="flex items-center gap-2.5 text-sm font-semibold" role="status">

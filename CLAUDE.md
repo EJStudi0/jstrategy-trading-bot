@@ -19,11 +19,14 @@ Al dueño se le habla en español, corto, sin nombres de ficheros ni de funcione
 - `tests/` — `.venv/bin/python -m pytest` (~40 s).
 - `centinela/` — **segundo bot** (añadido el 2026-11-11): solo Bitcoin, al contado, sin deuda, sigue la
   tendencia. Proceso aparte (`jstrategy-centinela.service`, `python -m centinela --config centinela.yaml
-  papel`), cartera simulada propia; todo lo que escribe va a `centinela_vivo/` y `logs/` (fuera de git).
+  real --confirmo-dinero-real` con `sandbox: true`): desde el 2026-11-11, por decisión del dueño, opera
+  en la **cuenta DEMO de Bitget** (dinero ficticio, contado). Las claves demo se leen de
+  `~/proyectos/nuevo/.env` (no se copian). Candado: con claves, `centinela/live/broker.connect` se niega
+  si no es la demo; todo lo que escribe va a `centinela_vivo/` y `logs/` (fuera de git).
   Sus pruebas, `centinela_pruebas/` (entran en el mismo `pytest`). El panel lo enseña en la sección
   «Centinela» a través de `bot/puente_centinela.py`, que solo LEE su base de datos y pone o quita su
-  fichero `STOP` (apagar no vende). Los mandos de un bot no tocan al otro. El paquete trae un modo real
-  propio (pide configuración y un indicador explícito): aquí no se usa ni se le dan claves.
+  fichero `STOP` (apagar no vende). Los mandos de un bot no tocan al otro. El panel enseña su cuenta
+  demo (`real-demo.db`); la simulación vieja (`papel.db`) se conserva.
 - `01_…` a `13_…`, `panel_web.py`, `panel_static/` — el sistema anterior. No se ejecuta. No se
   arregla ni se borra sin que el dueño lo pida.
 - Servicios: `jstrategy-bot.service` (Jorge y el panel) y `jstrategy-centinela.service` (systemd de
@@ -31,8 +34,10 @@ Al dueño se le habla en español, corto, sin nombres de ficheros ni de funcione
 
 ## Reglas
 
-1. **Solo simulación.** Operar con dinero real es decisión del dueño y un trabajo aparte (ver el
-   final del README). No se añade un interruptor que lo active.
+1. **Solo simulación o demo.** Operar con dinero real es decisión del dueño y un trabajo aparte (ver el
+   final del README). No se añade un interruptor que lo active. La demo de Bitget (dinero ficticio) sí
+   la autorizó el dueño el 2026-11-11: Centinela al contado; Jorge irá solo a futuros (intradía), cuando
+   su estrategia nueva pase diseño y prueba. Contado y futuros son carteras separadas en Bitget.
 2. **La frontera diseño/prueba no se toca.** `investigacion/comun.py: FIN_DISEÑO`. Cualquier idea
    nueva se diseña con datos anteriores y se prueba UNA vez con los posteriores. Ajustar un
    parámetro mirando la prueba la invalida; si pasa, se dice.

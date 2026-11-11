@@ -2,7 +2,7 @@
 # Instalar:  cp despliegue/jstrategy-centinela.service ~/.config/systemd/user/ && systemctl --user daemon-reload
 #            systemctl --user enable --now jstrategy-centinela.service
 [Unit]
-Description=Centinela (simulación): Bitcoin al contado, tendencia
+Description=Centinela (demo de Bitget, dinero ficticio): Bitcoin al contado, tendencia
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=3600
@@ -12,9 +12,11 @@ StartLimitBurst=20
 Type=simple
 WorkingDirectory=%h/proyectos/jstrategy
 Environment=PYTHONUNBUFFERED=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
-# Siempre `papel`: en este proyecto Centinela solo simula. Su registro va a logs/centinela.log
-# (rota solo). Encenderlo y apagarlo se hace desde el panel; esto solo lo mantiene vivo.
-ExecStart=%h/proyectos/jstrategy/.venv/bin/python -m centinela --config centinela.yaml papel
+# En la cuenta DEMO de Bitget (decisión del dueño, 2026-11-11): `real` con `sandbox: true` en
+# centinela.yaml; con claves, el broker se niega a conectar fuera de la demo. Las claves (demo) se
+# leen donde ya están, sin copiarlas. Registro en logs/centinela.log. Encender/apagar: el panel.
+EnvironmentFile=%h/proyectos/nuevo/.env
+ExecStart=%h/proyectos/jstrategy/.venv/bin/python -m centinela --config centinela.yaml real --confirmo-dinero-real
 Restart=on-failure
 RestartSec=30
 Nice=10

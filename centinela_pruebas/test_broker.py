@@ -359,3 +359,14 @@ def test_account_fee_is_read_when_the_exchange_exposes_it():
 
     ex.fetch_trading_fee = boom
     assert br.account_taker_fee() is None  # un fallo aquí nunca bloquea al bot
+
+
+def test_con_claves_solo_conecta_a_la_demo():
+    """Candado del proyecto: con claves y sin `sandbox`, no se conecta (nada de dinero real)."""
+    from centinela.live.broker import connect
+
+    with pytest.raises(BrokerError, match="demo"):
+        connect(ExecConfig(exchange="bitget", sandbox=False), {"apiKey": "x", "secret": "y"})
+    ex = connect(ExecConfig(exchange="bitget", sandbox=True), {"apiKey": "x", "secret": "y"})
+    assert ex.options.get("sandboxMode") is True
+    assert connect(ExecConfig(exchange="bitget", sandbox=False)) is not None  # solo precios públicos

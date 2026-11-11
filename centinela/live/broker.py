@@ -224,6 +224,10 @@ def connect(cfg: ExecConfig, credentials: dict[str, str] | None = None):
         raise BrokerError("falta ccxt: instala con `pip install ccxt` para operar en real") from exc
     if cfg.exchange not in ccxt.exchanges:
         raise BrokerError(f"exchange desconocido para ccxt: {cfg.exchange}")
+    # Candado de este proyecto (regla 1 de CLAUDE.md): con claves, solo el entorno demo del exchange.
+    # Sin claves sigue sirviendo para leer precios públicos.
+    if credentials and not cfg.sandbox:
+        raise BrokerError("en este proyecto solo se opera en el entorno demo del exchange (sandbox: true)")
     exchange = getattr(ccxt, cfg.exchange)(
         {**(credentials or {}), "enableRateLimit": True, "timeout": 20000, "options": {"defaultType": "spot"}}
     )

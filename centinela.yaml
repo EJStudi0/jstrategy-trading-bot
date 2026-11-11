@@ -7,13 +7,15 @@
 
 perfil: equilibrado
 
-# Aquí solo simulación (regla 1 del proyecto). El servicio arranca siempre con `papel`.
-modo: papel
+# Cuenta DEMO de Bitget (dinero ficticio, órdenes de verdad), decidido por el dueño el 2026-11-11.
+# `modo: real` + `sandbox: true`: con claves, el candado del broker solo deja conectar a la demo.
+modo: real
 capital_papel: 10000
 banda: 0.15
 
 ejecucion:
   exchange: bitget
+  sandbox: true
   simbolo: BTC/USDT
   # Comisión por lado de la cuenta de Bitget, leída con la clave del dueño el 2026-11-11.
   comision: 0.001

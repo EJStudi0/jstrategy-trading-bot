@@ -22,7 +22,9 @@ from typing import Optional
 from bot import config
 
 DIR_ESTADO = os.path.join(config.RAIZ, "centinela_vivo", "state")
-MODO = "papel"                 # en este proyecto, solo simulación
+# La cuenta demo de Bitget (dinero ficticio, órdenes de verdad). La simulación interna (`papel.db`)
+# se conserva, pero el panel enseña esta. Con claves, Centinela solo conecta a la demo (candado).
+MODO = "real-demo"
 # Decide al cierre de cada vela de una hora (más unos segundos): si el último latido es más viejo
 # que esto, el proceso no está corriendo o lleva ciclos fallando.
 LATIDO_MAXIMO_S = 75 * 60
@@ -74,7 +76,8 @@ def instantanea(dir_estado: str = DIR_ESTADO, ahora: Optional[float] = None) -> 
         latido = _valor(db, "heartbeat")
         saldos = _valor(db, "balances") or {}
         riesgo = _valor(db, "risk") or {}
-        primera = db.execute("SELECT equity FROM equity ORDER BY ts LIMIT 1").fetchone()
+        # La primera foto con saldo: en la demo, antes de pasarle fondos, la cartera vale 0.
+        primera = db.execute("SELECT equity FROM equity WHERE equity > 0 ORDER BY ts LIMIT 1").fetchone()
         ultima = db.execute("SELECT ts, equity, price, weight, target FROM equity ORDER BY ts DESC LIMIT 1").fetchone()
         fila = db.execute("SELECT payload FROM decisions ORDER BY ts DESC LIMIT 1").fetchone()
         decision = json.loads(fila[0]) if fila else {}
@@ -141,7 +144,7 @@ def curva(dir_estado: str = DIR_ESTADO, horas: int = 0, maximo: int = 600, ahora
         return []
     try:
         desde = int((ahora - horas * HORA_S) * 1000) if horas else 0
-        filas = db.execute("SELECT ts, equity, price, weight FROM equity WHERE ts >= ? ORDER BY ts", (desde,)).fetchall()
+        filas = db.execute("SELECT ts, equity, price, weight FROM equity WHERE ts >= ? AND equity > 0 ORDER BY ts", (desde,)).fetchall()
     except sqlite3.Error:
         return []
     finally:

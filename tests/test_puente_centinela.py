@@ -19,7 +19,7 @@ def sembrar(carpeta, latido_hace_s=600):
     pytest.importorskip("yaml")
     from centinela.live.state import StateStore
 
-    s = StateStore(carpeta, "papel", durable=False)
+    s = StateStore(carpeta, puente_centinela.MODO, durable=False)
     s.record_equity(MS - 7_200_000, 10_000.0, 70_000.0, 0.0, 0.0)
     s.record_equity(MS - 3_600_000, 10_000.0, 70_500.0, 0.5, 0.5)
     s.record_equity(MS - latido_hace_s * 1000, 10_100.0, 71_900.0, 0.5, 0.5)
@@ -52,7 +52,7 @@ def cliente(tmp_path, monkeypatch):
 def test_instantanea(tmp_path):
     d = sembrar(tmp_path)
     i = puente_centinela.instantanea(d, ahora=AHORA)
-    assert i["instalado"] and i["encendido"] and i["en_marcha"] and i["modo"] == "papel"
+    assert i["instalado"] and i["encendido"] and i["en_marcha"] and i["modo"] == puente_centinela.MODO
     assert i["capital"] == 10_000 and i["patrimonio"] == 10_100
     assert i["ganancia"] == pytest.approx(100) and i["ganancia_pct"] == pytest.approx(1.0)
     assert i["caida_pct"] == pytest.approx(-0.98, abs=0.01)
@@ -71,7 +71,7 @@ def test_sin_latido_reciente_no_esta_en_marcha(tmp_path):
 
 def test_sin_centinela_el_panel_lo_dice_y_no_falla(tmp_path):
     vacio = str(tmp_path / "no-existe")
-    assert puente_centinela.instantanea(vacio) == {"instalado": False, "encendido": True, "en_marcha": False, "modo": "papel"}
+    assert puente_centinela.instantanea(vacio) == {"instalado": False, "encendido": True, "en_marcha": False, "modo": puente_centinela.MODO}
     assert puente_centinela.curva(vacio) == []
     with pytest.raises(ValueError):
         puente_centinela.poner_interruptor(False, vacio)
@@ -135,3 +135,18 @@ def test_apagar_y_encender_desde_el_panel_no_toca_a_jorge(cliente):
 def test_el_interruptor_solo_acepta_verdadero_o_falso(cliente, cuerpo):
     assert cliente.post("/api/centinela/interruptor", json=cuerpo, headers=AUT).status_code == 400
     assert puente_centinela.encendido(cliente.dir)
+
+
+def test_el_capital_no_cuenta_las_fotos_a_cero(tmp_path):
+    """En la demo, antes de recibir fondos, la cartera vale 0: eso no es el capital inicial."""
+    pytest.importorskip("yaml")
+    from centinela.live.state import StateStore
+
+    s = StateStore(str(tmp_path), puente_centinela.MODO, durable=False)
+    s.record_equity(MS - 7_200_000, 0.0, 70_000.0, 0.0, 0.0)
+    s.record_equity(MS - 3_600_000, 2_500.0, 70_500.0, 0.0, 0.0)
+    s.record_equity(MS - 600_000, 2_550.0, 71_900.0, 0.0, 0.0)
+    s.set("heartbeat", MS - 600_000)
+    s.close()
+    i = puente_centinela.instantanea(str(tmp_path), ahora=AHORA)
+    assert i["capital"] == 2_500.0 and i["ganancia"] == pytest.approx(50.0)

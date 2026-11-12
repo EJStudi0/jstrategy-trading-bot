@@ -109,6 +109,25 @@ def _serie_patrimonio(ruta: str, maximo: int = 600, horas: int = 0) -> list:
     return puntos
 
 
+def _telegram(bot, d: dict) -> dict:
+    """Conectar, probar o quitar Telegram. La clave llega en el cuerpo y no se devuelve ni se registra."""
+    t = bot.telegram
+    if t is None:
+        raise ValueError("Telegram no está disponible en este arranque")
+    paso = d.get("paso")
+    if paso == "clave":
+        return t.poner_clave(d.get("token"))
+    if paso == "enlazar":
+        return t.enlazar()
+    if paso == "quitar":
+        return t.quitar()
+    if paso == "prueba":
+        if not t.enviar("🔔 <b>Mensaje de prueba de Bot Jorge.</b>\nSi lees esto, los avisos te llegan bien."):
+            raise ValueError("Telegram aún no está conectado")
+        return t.estado()
+    raise ValueError("paso desconocido")
+
+
 def construir_app(bot, token: str, dir_centinela: Optional[str] = None):
     dir_centinela = dir_centinela or puente_centinela.DIR_ESTADO
     # Los tipos de FastAPI se importan arriba, a nivel de módulo: con las anotaciones
@@ -220,13 +239,17 @@ def construir_app(bot, token: str, dir_centinela: Optional[str] = None):
     @app.get("/api/asistente", dependencies=[Depends(exigir_token)])
     def asistente():
         with bot.lock:
-            return JSONResponse(bot.asistente.instantanea(dict(bot.precios)), headers=sin_cache)
+            i = bot.asistente.instantanea(dict(bot.precios))
+            i["telegram"] = bot.telegram.estado() if bot.telegram else {"configurado": False, "bot": None, "codigo": None}
+            return JSONResponse(i, headers=sin_cache)
 
     @app.post("/api/asistente/{accion}", dependencies=[Depends(exigir_token)])
     async def asistente_accion(accion: str, request: Request):
         d = await cuerpo_json(request)
         a = bot.asistente
         try:
+            if accion == "telegram":   # habla con Telegram: fuera del candado, para no parar al bot
+                return JSONResponse(_telegram(bot, d), headers=sin_cache)
             with bot.lock:
                 precios = dict(bot.precios)
                 if accion == "abrir":

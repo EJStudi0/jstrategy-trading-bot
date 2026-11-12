@@ -24,6 +24,7 @@ import numpy as np
 from bot import asistente as asis
 from bot import cartera as cart
 from bot import config, datos, estrategia, indicadores, resumen
+from bot import telegram as tg
 
 log = logging.getLogger("bot")
 
@@ -76,6 +77,8 @@ class Bot:
         self.avisos: list = []
         self._confirmacion: Optional[tuple] = None
         self.asistente = asis.Asistente(self.feed, self.p.simbolos, carpeta)
+        self.telegram: Optional[tg.Telegram] = None   # lo pone `correr`; en pruebas, apagado
+        self.asistente.notificar = self._alerta_fuera
 
     # ── datos ─────────────────────────────────────────────────────────────────
 
@@ -235,6 +238,8 @@ class Bot:
         self.lectura = obj
         ancla = self.velas.get(self.p.simbolos[0])
         self._t_lectura = int(ancla.t[-1]) if ancla is not None and len(ancla) else None
+        if hechas:
+            self._fuera(tg.texto_operaciones(hechas, motivo, self.cartera.patrimonio(self.precios)), "operaciones")
         self.decision = {**obj, "utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                          "mando": self.mando, "operaciones": len(hechas)}
         self.guardar()
@@ -309,6 +314,7 @@ class Bot:
             self.liquidar_financiacion(eventos)
             if self.asistente.mando_caducado() and self.mando != "auto":
                 log.info("El mando temporal ha caducado: vuelve a automático")
+                self._fuera("⏱ <b>El mando temporal ha caducado.</b>\nEl bot vuelve a automático.")
                 self.poner_mando("auto")
             self._asistente_ciclo(fin_manual)
             if self._toca_decidir():
@@ -319,6 +325,7 @@ class Bot:
                 self._t_lectura = int(self.velas[self.p.simbolos[0]].t[-1])
                 self.lectura = self.objetivos_actuales() or self.lectura
             self._foto()
+            self._resumen_diario()
             self.ultimo_ciclo = time.time()
             self.guardar()
 
@@ -335,7 +342,8 @@ class Bot:
     def _asistente_ciclo(self, fin_manual: list) -> None:
         try:
             a = self.asistente
-            a.vigilar(self.precios, fin_manual)
+            for fila in a.vigilar(self.precios, fin_manual):
+                self._fuera(tg.texto_cierre(fila))
             a.vigilar_niveles(self.precios)
             a.analizar(self.velas)
             a.seguir(self.precios)
@@ -419,8 +427,46 @@ class Bot:
 
     def _aviso(self, texto: str) -> None:
         log.warning(texto)
+        self._fuera(f"⚠️ <b>Aviso del bot</b>\n{texto}", clave=texto[:40])
         self.avisos = (self.avisos + [{"utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                                        "texto": texto}])[-20:]
+
+    # ── avisos a Telegram ─────────────────────────────────────────────────────
+
+    def _fuera(self, texto: str, tipo: Optional[str] = None, **kw) -> bool:
+        """Manda un aviso a Telegram si está conectado y encendido. `tipo` = preferencia que lo apaga."""
+        try:
+            prefs = self.asistente.prefs["telegram"]
+            if self.telegram is None or not prefs["activo"] or (tipo and not prefs.get(tipo, True)):
+                return False
+            return self.telegram.enviar(texto, **kw)
+        except Exception:
+            log.exception("No se pudo preparar el aviso de Telegram")
+            return False
+
+    def _alerta_fuera(self, alerta: dict) -> None:
+        if tg.pasa(alerta, self.asistente.prefs["telegram"]["nivel"]):
+            self._fuera(tg.texto_alerta(alerta, asis.patrones.CATALOGO), silencio=alerta.get("fuerza") == "baja")
+
+    def _resumen_diario(self) -> None:
+        """Una vez al día, pasada la hora fijada: cómo va todo."""
+        ahora = datetime.now(timezone.utc)
+        dia = ahora.date().isoformat()
+        if self.telegram is None or not self.telegram.configurado or ahora.hour < tg.HORA_RESUMEN_UTC \
+                or self.telegram.resumen_dia == dia:
+            return
+        self.telegram.marcar_resumen(dia)
+        try:
+            i = self.instantanea()
+            manual = self.asistente.instantanea(dict(self.precios))["manual"]
+            puntos = resumen.leer_curva(self.ruta_patrimonio)
+            antes = [p for p in puntos if (ahora - p.t).total_seconds() >= 24 * 3600]
+            cambio = 100 * (i["patrimonio"] / antes[-1].patrimonio - 1) if antes and antes[-1].patrimonio else None
+            corte = time.time() * 1000 - 24 * 3600_000
+            n = sum(1 for a in self.asistente.alertas if a["t"] >= corte and a["fuerza"] != "baja" and not a.get("callada"))
+            self._fuera(tg.texto_resumen(i, manual, n, cambio), "resumen", silencio=True)
+        except Exception:
+            log.exception("No se pudo preparar el resumen diario")
 
     # ── mando desde el panel ──────────────────────────────────────────────────
 
@@ -650,6 +696,8 @@ def correr(intervalo_segundos: int = 60) -> None:
     bot = Bot()
     log.info("Bot en SIMULACIÓN | %d monedas | velas de %s | mando: %s",
              len(bot.p.simbolos), bot.p.intervalo, bot.mando)
+    bot.telegram = tg.Telegram()
+    bot._fuera(f"▶️ <b>Bot Jorge en marcha</b> (simulación)\nMando: {bot.mando} · {len(bot.p.simbolos)} monedas", silencio=True)
     try:
         from bot import panel
         panel.arrancar(bot)
@@ -669,6 +717,7 @@ def correr(intervalo_segundos: int = 60) -> None:
         except KeyboardInterrupt:
             log.info("Detenido")
             break
-        except Exception:
+        except Exception as e:
             log.exception("Error en el ciclo")
+            bot._fuera(f"🚨 <b>Error en el ciclo del bot</b>\n{type(e).__name__}. Sigue intentándolo cada minuto.", clave="ciclo")
         time.sleep(intervalo_segundos)

@@ -18,7 +18,7 @@ from typing import Optional
 
 import numpy as np
 
-from bot import config, datos, patrones
+from bot import config, datos, patrones, telegram
 
 log = logging.getLogger("asistente")
 
@@ -56,6 +56,7 @@ class Asistente:
         self.n_id: int = g.get("n_id", 0)
         self.niveles: list = g.get("niveles", [])        # «avísame si X cruza tal precio»
         self.prefs: dict = {"patrones_callados": [], "monedas_calladas": [], **g.get("prefs", {})}
+        self.prefs["telegram"] = {**telegram.PREFS, **self.prefs.get("telegram", {})}
         self.velas: dict = {}                            # símbolo -> Velas de 30 min
         self._analizada: dict = {}                       # símbolo -> apertura de la última vela analizada
         self.previo: dict = {}                           # patrón -> {n, a_favor_pct, media_pct} (último mes)
@@ -149,7 +150,7 @@ class Asistente:
             al["previo"] = self.previo.get(al["patron"])
             self.alertas.append(al)
             log.info("Aviso: %s %s %s", al["simbolo"], al["patron"], {1: "arriba", -1: "abajo", 0: ""}[al["lado"]])
-            if self.notificar and al["fuerza"] != "baja" and not al.get("callada"):
+            if self.notificar:   # quien recibe decide, según el nivel que eligió el dueño
                 try:
                     self.notificar(al)
                 except Exception as e:
@@ -376,6 +377,8 @@ class Asistente:
                 if not isinstance(lista, list) or not set(lista) <= validos:
                     raise ValueError("preferencias no válidas")
                 self.prefs[clave] = sorted(set(lista))
+        if "telegram" in cambios:
+            self.prefs["telegram"] = {**self.prefs["telegram"], **telegram.validar_prefs(cambios["telegram"])}
         self.guardar()
         return self.prefs
 

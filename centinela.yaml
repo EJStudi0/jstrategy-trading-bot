@@ -36,4 +36,4 @@ directorios:
   estado: centinela_vivo/state
   informes: centinela_vivo/reports
 
-telegram: false
+telegram: true

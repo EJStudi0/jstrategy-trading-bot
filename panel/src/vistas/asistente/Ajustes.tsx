@@ -1,12 +1,12 @@
 // Sub-pestaña «Ajustes»: qué patrones avisan, la cuenta manual, el marcador y una ayuda corta.
-import { BellRing, CircleHelp, RotateCcw, Trophy } from "lucide-react";
+import { BellRing, CircleHelp, RotateCcw, Send, Trophy } from "lucide-react";
 import { useState } from "react";
-import { Chip, Panel, Vacio, colorSigno, cx } from "../../componentes/ui";
-import { usePrefsAsistente, useReiniciarCuenta } from "../../hooks/datos";
+import { Boton, Chip, Panel, Vacio, colorSigno, cx } from "../../componentes/ui";
+import { usePrefsAsistente, useReiniciarCuenta, useTelegram } from "../../hooks/datos";
 import { leerNumero } from "../../lib/asistente";
 import { dinero, pct, signoDe, valido } from "../../lib/formato";
-import type { Asistente, Previo } from "../../tipos";
-import { BotonDosToques, CASILLA, Campo, InterruptorFila, Resultado } from "./comunes";
+import type { Asistente, PrefsTelegram, Previo } from "../../tipos";
+import { BotonDosToques, CASILLA, Campo, InterruptorFila, Opciones, Resultado } from "./comunes";
 
 function Patrones({ as }: { as: Asistente }) {
   const prefs = usePrefsAsistente();
@@ -34,6 +34,104 @@ function Patrones({ as }: { as: Asistente }) {
       <p className="border-t border-borde px-4 py-3 text-xs leading-relaxed text-texto-3">
         Uno apagado se sigue apuntando en el marcador, pero no te avisa ni cuenta como «sin ver». Los precios que pides vigilar avisan siempre.
       </p>
+    </Panel>
+  );
+}
+
+const PREFS_TG: PrefsTelegram = { activo: true, nivel: "importantes", operaciones: true, resumen: true };
+const NIVELES_TG: { valor: PrefsTelegram["nivel"]; texto: string }[] = [
+  { valor: "fuertes", texto: "Solo fuertes" },
+  { valor: "importantes", texto: "Importantes" },
+  { valor: "todas", texto: "Todos" },
+];
+const CUANTOS_TG: Record<PrefsTelegram["nivel"], string> = {
+  fuertes: "Solo la ruptura con volumen y tus precios vigilados: dos o tres al día.",
+  importantes: "Fuertes y medios (barridos, movimientos bruscos, zonas): unos quince al día.",
+  todas: "Todo lo que ve el asistente, también lo flojo (sin sonido): pueden ser decenas al día.",
+};
+
+function Telegram({ as }: { as: Asistente }) {
+  const tg = useTelegram();
+  const prefs = usePrefsAsistente();
+  const [clave, setClave] = useState("");
+  const e = as.telegram ?? { configurado: false, bot: null, codigo: null };
+  const p = { ...PREFS_TG, ...as.prefs?.telegram };
+  const poner = (c: Partial<PrefsTelegram>) => prefs.mutate({ telegram: c });
+  const chip = e.configurado ? <Chip tono="sube">Conectado</Chip> : e.codigo ? <Chip tono="aviso">Falta un paso</Chip> : <Chip>Sin conectar</Chip>;
+
+  return (
+    <Panel titulo="Telegram" icono={<Send />} className="col-span-12 xl:col-span-6" acciones={chip}>
+      {!e.configurado && !e.codigo && (
+        <div className="grid gap-3 text-[13px]">
+          <ol className="grid list-decimal gap-1.5 pl-5 leading-relaxed text-texto-2">
+            <li>En Telegram busca <span className="font-semibold text-texto">@BotFather</span> y envíale <span className="num font-semibold text-texto">/newbot</span>.</li>
+            <li>Ponle un nombre y un usuario que acabe en «bot». Te dará una clave larga con números y letras.</li>
+            <li>Cópiala y pégala aquí.</li>
+          </ol>
+          <Campo rotulo="Clave del bot de Telegram">
+            <input className={cx(CASILLA, "num")} type="password" autoComplete="off" autoCapitalize="off" spellCheck={false} placeholder="123456789:AA…"
+              value={clave} onChange={(ev) => setClave(ev.target.value)} />
+          </Campo>
+          <div className="flex flex-wrap items-center gap-3">
+            <Boton variante="primario" className="h-10" disabled={tg.isPending || clave.trim().length < 20}
+              onClick={() => tg.mutate({ paso: "clave", token: clave.trim() }, { onSuccess: () => setClave("") })}>
+              {tg.isPending ? "Comprobando…" : "Guardar clave"}
+            </Boton>
+            <Resultado m={tg} ok="Clave correcta" />
+          </div>
+          <p className="text-xs leading-relaxed text-texto-3">La clave se guarda solo en el servidor del bot y no vuelve a enseñarse. El bot solo envía avisos: por Telegram no se le puede mandar nada.</p>
+        </div>
+      )}
+
+      {!e.configurado && e.codigo && (
+        <div className="grid gap-3 text-[13px]">
+          <p className="leading-relaxed text-texto-2">
+            Clave correcta. Ahora abre <a className="font-semibold text-acento underline" href={`https://t.me/${e.bot}`} target="_blank" rel="noreferrer">@{e.bot}</a> en
+            Telegram, pulsa «Iniciar» y envíale este código:
+          </p>
+          <p className="num rounded-lg border border-borde-2 bg-panel-2 py-3 text-center text-2xl font-bold tracking-[0.3em] text-texto select-all">{e.codigo}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Boton variante="primario" className="h-10" disabled={tg.isPending} onClick={() => tg.mutate({ paso: "enlazar" })}>
+              {tg.isPending ? "Buscando tu mensaje…" : "Ya lo envié"}
+            </Boton>
+            <Boton variante="fantasma" className="h-10" disabled={tg.isPending} onClick={() => tg.mutate({ paso: "quitar" })}>Cambiar la clave</Boton>
+          </div>
+          <Resultado m={tg} ok="Conectado" />
+        </div>
+      )}
+
+      {e.configurado && (
+        <div className="grid gap-3 text-[13px]">
+          <InterruptorFila marcado={p.activo} disabled={prefs.isPending} alCambiar={(x) => poner({ activo: x })}>
+            <span className="block text-[13px] font-semibold text-texto">Enviar avisos a Telegram</span>
+            <span className="block text-xs text-texto-3">Llegan por @{e.bot}. Apagado, no sale nada.</span>
+          </InterruptorFila>
+          <div className={cx("grid gap-3", !p.activo && "opacity-50")}>
+            <div>
+              <p className="mb-1.5 text-xs text-texto-3">Qué avisos de patrones te llegan</p>
+              <Opciones etiqueta="Qué avisos de patrones llegan a Telegram" valor={p.nivel} opciones={NIVELES_TG} alCambiar={(v) => poner({ nivel: v })} />
+              <p className="mt-1.5 text-xs leading-snug text-texto-3">{CUANTOS_TG[p.nivel]}</p>
+            </div>
+            <InterruptorFila marcado={p.operaciones} disabled={prefs.isPending} alCambiar={(x) => poner({ operaciones: x })}>
+              <span className="block text-[13px] font-semibold text-texto">Cuando el bot opera</span>
+              <span className="block text-xs text-texto-3">Cada vez que Jorge compra o vende por su cuenta.</span>
+            </InterruptorFila>
+            <InterruptorFila marcado={p.resumen} disabled={prefs.isPending} alCambiar={(x) => poner({ resumen: x })}>
+              <span className="block text-[13px] font-semibold text-texto">Resumen diario</span>
+              <span className="block text-xs text-texto-3">Una vez al día, a las 12:00 UTC: cómo va todo.</span>
+            </InterruptorFila>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Boton className="h-10" disabled={tg.isPending} onClick={() => tg.mutate({ paso: "prueba" })}>Enviar una prueba</Boton>
+            <BotonDosToques disabled={tg.isPending} confirma="¿Seguro? Desconectar" alConfirmar={() => tg.mutate({ paso: "quitar" })}>Desconectar</BotonDosToques>
+            <Resultado m={tg} ok="Hecho" />
+            <Resultado m={prefs} />
+          </div>
+          <p className="text-xs leading-relaxed text-texto-3">
+            Siempre llegan: tus precios vigilados, el cierre de una operación tuya por stop u objetivo, el fin de un mando temporal y los problemas del bot.
+          </p>
+        </div>
+      )}
     </Panel>
   );
 }
@@ -133,7 +231,7 @@ const AYUDA: [string, string][] = [
   ["Avísame si…", "pones un precio y te avisa una vez cuando la moneda llegue ahí."],
   ["Operar", "abres y cierras operaciones tuyas en una cuenta aparte, con dinero ficticio. El stop limita lo que pierdes."],
   ["Monedas", "le dices al bot que no toque una moneda, que la cubra o que salga de ella, y silencias las que no te interesan."],
-  ["Ajustes", "eliges qué patrones avisan, reinicias la cuenta manual y miras cómo les ha ido a los avisos."],
+  ["Ajustes", "conectas Telegram, eliges qué patrones avisan, reinicias la cuenta manual y miras cómo les ha ido a los avisos."],
 ];
 
 function Ayuda() {
@@ -149,6 +247,7 @@ function Ayuda() {
 export function Ajustes({ as }: { as: Asistente }) {
   return (
     <div className="grid grid-cols-12 items-start gap-3 sm:gap-4">
+      <Telegram as={as} />
       <Patrones as={as} />
       <Cuenta as={as} />
       <Marcador as={as} />

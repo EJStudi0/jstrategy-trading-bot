@@ -3,7 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { ZONA } from "../lib/tiempo";
-import type { Asistente, Centinela, Estado, Ganancias, Grafica, Mando, Mercado, ModoVeto, Operacion, OrdenManual, PrefsAsistente, PuntoCurva } from "../tipos";
+import type { Asistente, Centinela, Estado, Ganancias, Grafica, Mando, Mercado, ModoVeto, Operacion, OrdenManual, PrefsAsistente, PrefsTelegram, PuntoCurva } from "../tipos";
 
 const S = 1000;
 
@@ -112,7 +112,9 @@ export const useReiniciarCuenta = () => useAccionAsistente<{ capital: number }>(
 /** Con `simbolo` y `precio` crea un nivel a vigilar; con `id` lo borra. */
 export const useNivel = () => useAccionAsistente<{ simbolo: string; precio: number; nota?: string } | { id: number }>("nivel");
 /** Qué patrones y monedas no avisan. Las listas van completas. */
-export const usePrefsAsistente = () => useAccionAsistente<Partial<PrefsAsistente>>("prefs");
+export const usePrefsAsistente = () => useAccionAsistente<Partial<Omit<PrefsAsistente, "telegram">> & { telegram?: Partial<PrefsTelegram> }>("prefs");
+/** Conectar Telegram: la clave del bot, enlazar el chat con el código, mandar una prueba o quitarlo. */
+export const useTelegram = () => useAccionAsistente<{ paso: "clave"; token: string } | { paso: "enlazar" | "quitar" | "prueba" }>("telegram");
 
 /** Marca los avisos como vistos; solo hace falta refrescar el asistente (el contador de la pestaña). */
 export function useMarcarVistas() {

@@ -264,9 +264,24 @@ export interface NivelPrecio {
   creado_utc: string;
 }
 
+export interface PrefsTelegram {
+  activo: boolean;
+  nivel: "todas" | "importantes" | "fuertes";
+  operaciones: boolean;
+  resumen: boolean;
+}
+
+export interface EstadoTelegram {
+  configurado: boolean;
+  bot: string | null;
+  /** Solo mientras falta enlazar el chat: lo que el dueño le manda al bot. */
+  codigo: string | null;
+}
+
 export interface PrefsAsistente {
   patrones_callados: string[];
   monedas_calladas: string[];
+  telegram?: PrefsTelegram;
 }
 
 export interface PosicionManual {
@@ -332,6 +347,7 @@ export interface Asistente {
   monedas: string[];
   niveles?: NivelPrecio[];
   prefs?: PrefsAsistente;
+  telegram?: EstadoTelegram;
 }
 
 /** Lo que se manda para abrir una operación a mano. */

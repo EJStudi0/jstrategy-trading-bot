@@ -274,6 +274,8 @@ export interface PrefsTelegram {
 export interface EstadoTelegram {
   configurado: boolean;
   bot: string | null;
+  /** Nombre de la cuenta de Telegram enlazada, para que el dueño vea que es la suya. */
+  nombre?: string | null;
   /** Solo mientras falta enlazar el chat: lo que el dueño le manda al bot. */
   codigo: string | null;
 }

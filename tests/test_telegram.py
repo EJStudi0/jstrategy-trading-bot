@@ -79,8 +79,17 @@ def test_conectar_pide_el_codigo_y_no_ensena_la_clave(tmp_path):
     api.mensajes.append({"message": {"chat": {"id": 5, "type": "private"}, "text": "otro que pasaba"}})
     with pytest.raises(ValueError):
         t.enlazar()
-    api.mensajes.append({"message": {"chat": {"id": 77, "type": "private"}, "text": e["codigo"]}})
-    assert t.enlazar()["configurado"] and t.chat == 77
+    api.mensajes.append({"message": {"chat": {"id": 6, "type": "private"}, "text": "mira " + e["codigo"]}})
+    with pytest.raises(ValueError):
+        t.enlazar()                                      # el código tiene que ir solo, no dentro de otro texto
+    api.mensajes.append({"message": {"chat": {"id": 77, "type": "private", "first_name": "Ana"}, "text": "/start " + e["codigo"]}})
+    api.mensajes.append({"message": {"chat": {"id": 88, "type": "private"}, "text": e["codigo"]}})
+    with pytest.raises(ValueError):
+        t.enlazar()                                      # dos cuentas con el código: no se enlaza ninguna
+    assert t.chat is None and t.codigo != e["codigo"]
+    api.mensajes[:] = [{"message": {"chat": {"id": 77, "type": "private", "first_name": "Ana"}, "text": t.codigo}}]
+    r = t.enlazar()
+    assert r["configurado"] and t.chat == 77 and r["nombre"] == "Ana"
     t.vaciar()
     assert "conectado" in api.enviados()[0]
     otra = tg.Telegram(str(tmp_path / "telegram.json"), api=api, hilo=False)   # sobrevive a un reinicio

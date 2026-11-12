@@ -162,6 +162,7 @@ class Telegram:
         self.chat = g.get("chat")
         self.bot: str = g.get("bot", "")
         self.codigo: str = g.get("codigo", "")
+        self.nombre: str = g.get("nombre", "")
         self.resumen_dia: str = g.get("resumen_dia", "")
         self._cola: queue.Queue = queue.Queue(maxsize=200)
         self._ultimo: dict = {}
@@ -177,13 +178,13 @@ class Telegram:
 
     def estado(self) -> dict:
         """Para el panel. La clave no sale nunca."""
-        return {"configurado": self.configurado, "bot": self.bot or None,
+        return {"configurado": self.configurado, "bot": self.bot or None, "nombre": self.nombre or None,
                 "codigo": self.codigo if self.token and not self.chat else None}
 
     def guardar(self) -> None:
         if self.ruta:
             config.escribir_json(self.ruta, {"token": self.token, "chat": self.chat, "bot": self.bot,
-                                             "codigo": self.codigo, "resumen_dia": self.resumen_dia})
+                                             "codigo": self.codigo, "nombre": self.nombre, "resumen_dia": self.resumen_dia})
 
     def poner_clave(self, token) -> dict:
         """Paso 1: comprueba la clave con Telegram y prepara el código que el dueño mandará al bot."""
@@ -196,7 +197,7 @@ class Telegram:
             raise ValueError("No pude hablar con Telegram ahora mismo. Prueba otra vez.") from None
         if not r.get("ok"):
             raise ValueError("Telegram no reconoce esa clave. Revisa que esté completa.")
-        self.token, self.chat, self.bot = token, None, r["result"].get("username", "")
+        self.token, self.chat, self.bot, self.nombre = token, None, r["result"].get("username", ""), ""
         self.codigo = f"{secrets.randbelow(900_000) + 100_000}"
         self.guardar()
         log.info("Telegram: clave nueva puesta para @%s; falta enlazar el chat", self.bot)
@@ -210,19 +211,30 @@ class Telegram:
             r = self._api(self.token, "getUpdates", {"timeout": 0, "allowed_updates": ["message"]})
         except ConnectionError:
             raise ValueError("No pude hablar con Telegram ahora mismo. Prueba otra vez.") from None
-        for u in reversed(r.get("result") or []):
+        # El mensaje tiene que ser el código tal cual (o el «/start código» del enlace), en un chat privado.
+        validos = (self.codigo, f"/start {self.codigo}") if self.codigo else ()
+        chats = {}
+        for u in r.get("result") or []:
             m = u.get("message") or {}
-            if (m.get("chat") or {}).get("type") == "private" and self.codigo and self.codigo in str(m.get("text", "")):
-                self.chat, self.codigo = m["chat"]["id"], ""
-                self.guardar()
-                log.info("Telegram: chat enlazado")
-                self.enviar("✅ <b>Bot Jorge conectado.</b>\nA partir de ahora los avisos te llegan aquí. "
-                            "Es todo simulación: dinero ficticio.")
-                return self.estado()
+            chat = m.get("chat") or {}
+            if chat.get("type") == "private" and str(m.get("text", "")).strip() in validos:
+                chats[chat["id"]] = " ".join(x for x in (chat.get("first_name"), chat.get("last_name")) if x) or chat.get("username") or ""
+        if len(chats) > 1:   # dos personas con el mismo código: no se elige; clave y código nuevos
+            self.codigo = f"{secrets.randbelow(900_000) + 100_000}"
+            self.guardar()
+            raise ValueError("El código llegó desde más de una cuenta. Por seguridad he generado otro: envía el nuevo.")
+        if chats:
+            (self.chat, self.nombre), = chats.items()
+            self.codigo = ""
+            self.guardar()
+            log.info("Telegram: chat enlazado")
+            self.enviar("✅ <b>Bot Jorge conectado.</b>\nA partir de ahora los avisos te llegan aquí. "
+                        "Es todo simulación: dinero ficticio.")
+            return self.estado()
         raise ValueError(f"Todavía no veo tu mensaje. Abre @{self.bot} en Telegram, pulsa Iniciar y envíale el código {self.codigo}.")
 
     def quitar(self) -> dict:
-        self.token, self.chat, self.bot, self.codigo = "", None, "", ""
+        self.token, self.chat, self.bot, self.codigo, self.nombre = "", None, "", "", ""
         self.guardar()
         log.info("Telegram: desconectado")
         return self.estado()

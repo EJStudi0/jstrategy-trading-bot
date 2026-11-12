@@ -86,7 +86,7 @@ function Telegram({ as }: { as: Asistente }) {
       {!e.configurado && e.codigo && (
         <div className="grid gap-3 text-[13px]">
           <p className="leading-relaxed text-texto-2">
-            Clave correcta. Ahora abre <a className="font-semibold text-acento underline" href={`https://t.me/${e.bot}`} target="_blank" rel="noreferrer">@{e.bot}</a> en
+            Clave correcta. Ahora abre <a className="font-semibold text-acento underline" href={`https://t.me/${e.bot}?start=${e.codigo}`} target="_blank" rel="noreferrer">@{e.bot}</a> en
             Telegram, pulsa «Iniciar» y envíale este código:
           </p>
           <p className="num rounded-lg border border-borde-2 bg-panel-2 py-3 text-center text-2xl font-bold tracking-[0.3em] text-texto select-all">{e.codigo}</p>
@@ -104,7 +104,7 @@ function Telegram({ as }: { as: Asistente }) {
         <div className="grid gap-3 text-[13px]">
           <InterruptorFila marcado={p.activo} disabled={prefs.isPending} alCambiar={(x) => poner({ activo: x })}>
             <span className="block text-[13px] font-semibold text-texto">Enviar avisos a Telegram</span>
-            <span className="block text-xs text-texto-3">Llegan por @{e.bot}. Apagado, no sale nada.</span>
+            <span className="block text-xs text-texto-3">Llegan por @{e.bot}{e.nombre ? ` a la cuenta de ${e.nombre}` : ""}. Apagado, no sale nada.</span>
           </InterruptorFila>
           <div className={cx("grid gap-3", !p.activo && "opacity-50")}>
             <div>
